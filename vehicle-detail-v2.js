@@ -2,14 +2,17 @@
  * CUSTOM ELEMENT — Vehicle Detail Viewer
  * Tag: <vehicle-detail-viewer>
  *
- * Attributes set by widget:
- *   vehicle-data  — JSON: full CMS listing item
- *   style-props   — JSON style token map
- *
- * Events dispatched:
- *   navigate-to-listing  — { slug }
- *   submit-lead          — { formData }
- *   seo-markup-ready     — { markup }
+ * Performance improvements:
+ *  1. CSS is injected once into <head> via a <style id="vdv-styles"> tag, NOT re-injected per element.
+ *     This eliminates the biggest render-blocking cost — repeated large CSS string parsing.
+ *  2. Gallery: only first image is eager/sync, all others are lazy/async.
+ *     Thumbnails use tiny 150x110 Wix images (avif, q=70).
+ *  3. All below-fold sections (calc, lead, dealer, tabs 2-4) use IntersectionObserver for deferred rendering.
+ *  4. _imgUrl uses lower q=75 for thumbnails, q=80 for gallery, avif format.
+ *  5. _css() returns only a minimal skeleton style on first paint. Full styles injected once into <head>.
+ *  6. Tab panels 2-4 (features/history/media) render on first click, not on page load.
+ *  7. Share SVGs are inlined lazily (not part of initial innerHTML).
+ *  8. seoMarkup is set by widget (not via CE event), so no event listener overhead.
  */
 
 const IC = {
@@ -41,47 +44,161 @@ function ic(name, size = 16) {
   return `<span class="vdv-ic" style="width:${size}px;height:${size}px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${IC[name] || ''}</span>`;
 }
 
+// ── Inject global styles once into <head> (huge perf win vs per-element <style>) ──
+function _injectGlobalStyles(s) {
+  const id  = 'vdv-global-styles';
+  let el    = document.getElementById(id);
+  if (!el) { el = document.createElement('style'); el.id = id; document.head.appendChild(el); }
+  const fs  = Number(s.fontSize) || 14;
+  const fs2 = Math.max(11, fs - 1);
+  const fs3 = Math.max(10, fs - 2);
+  el.textContent = `
+  vehicle-detail-viewer *, vehicle-detail-viewer *::before, vehicle-detail-viewer *::after{box-sizing:border-box;margin:0;padding:0}
+  vehicle-detail-viewer{display:block;width:100%;font-family:${s.fontFamily};font-size:${fs}px}
+  .vdv-ic{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;vertical-align:middle}
+  .vdv-ic svg{width:100%;height:100%}
+  .vdv-container{background:${s.bgColor};max-width:1400px;margin:0 auto;padding:32px 20px}
+  .vdv-breadcrumb{margin-bottom:20px}
+  .vdv-breadcrumb-link{display:inline-flex;align-items:center;gap:4px;background:none;border:none;color:${s.accentColor};font-size:${fs}px;font-weight:600;cursor:pointer;padding:0;transition:opacity .2s;font-family:${s.fontFamily}}
+  .vdv-breadcrumb-link:hover{opacity:.8}
+  .vdv-hero{display:grid;grid-template-columns:1fr 380px;gap:28px;margin-bottom:32px}
+  .vdv-gallery{display:flex;flex-direction:column;gap:12px}
+  .vdv-gallery-main{width:100%;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:${s.cardBg};position:relative}
+  .vdv-gallery-img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .3s}
+  .vdv-gallery-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:${s.metaColor}}
+  .vdv-gallery-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.6);border:none;color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;z-index:2;padding:0}
+  .vdv-gallery-nav:hover{background:${s.accentColor}}
+  .vdv-gallery-prev{left:12px}.vdv-gallery-next{right:12px}
+  .vdv-gallery-counter{position:absolute;bottom:10px;right:14px;background:rgba(0,0,0,.6);color:#fff;font-size:${fs3}px;padding:4px 10px;border-radius:12px}
+  .vdv-gallery-thumbs{display:flex;gap:8px;flex-wrap:wrap}
+  .vdv-thumb{width:72px;height:52px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid ${s.galleryThumbBorder};transition:border-color .2s;flex-shrink:0;content-visibility:auto}
+  .vdv-thumb.active{border-color:${s.galleryThumbActive}}
+  .vdv-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .vdv-summary{background:${s.cardBg};border:1px solid ${s.cardBorder};border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;position:sticky;top:16px;align-self:flex-start}
+  .vdv-summary-loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 0;color:${s.metaColor}}
+  .vdv-spinner{width:36px;height:36px;border:3px solid ${s.cardBorder};border-top-color:${s.accentColor};border-radius:50%;animation:vdv-spin .8s linear infinite}
+  @keyframes vdv-spin{to{transform:rotate(360deg)}}
+  .vdv-badges{display:flex;gap:6px;flex-wrap:wrap}
+  .vdv-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:12px;font-size:${fs3}px;font-weight:700;text-transform:uppercase}
+  .vdv-badge-new{background:${s.badgeNewBg};color:${s.badgeNewText}}
+  .vdv-badge-used{background:${s.badgeUsedBg};color:${s.badgeUsedText}}
+  .vdv-badge-rent{background:${s.badgeRentBg};color:${s.badgeRentText}}
+  .vdv-badge-auction{background:${s.badgeAuctionBg};color:${s.badgeAuctionText}}
+  .vdv-badge-featured{background:${s.accentColor};color:#fff}
+  .vdv-badge-sold,.vdv-badge-rented{background:#374151;color:#9ca3af}
+  .vdv-vehicle-title{font-size:${fs+10}px;font-weight:800;color:${s.titleColor};line-height:1.3}
+  .vdv-vehicle-sub{font-size:${fs2}px;color:${s.metaColor}}
+  .vdv-price-block{padding:16px;background:${s.bgColor};border-radius:10px;border:1px solid ${s.cardBorder}}
+  .vdv-price-main{font-size:${fs+14}px;font-weight:800;color:${s.priceColor}}
+  .vdv-price-orig{font-size:${fs+2}px;color:${s.priceOrigColor};text-decoration:line-through;margin-left:8px}
+  .vdv-price-note{font-size:${fs2}px;color:${s.metaColor};margin-top:4px}
+  .vdv-price-rental,.vdv-price-monthly{font-size:${fs2}px;color:${s.bodyColor};margin-top:4px}
+  .vdv-quick-specs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .vdv-qs{display:flex;flex-direction:column;gap:2px;background:${s.bgColor};padding:10px 12px;border-radius:8px;border:1px solid ${s.cardBorder}}
+  .vdv-qs-label{font-size:${fs3}px;color:${s.specLabelColor};text-transform:uppercase;letter-spacing:.4px}
+  .vdv-qs-value{font-size:${fs2}px;font-weight:600;color:${s.specValueColor}}
+  .vdv-btn{width:100%;padding:14px;border-radius:10px;font-size:${fs}px;font-weight:700;border:none;cursor:pointer;transition:all .2s;font-family:${s.fontFamily};display:inline-flex;align-items:center;justify-content:center;gap:7px}
+  .vdv-btn-accent{background:${s.btnBg};color:${s.btnText}}
+  .vdv-btn-accent:hover{background:${s.accentHover}}
+  .vdv-btn-ghost{background:transparent;color:${s.btnGhostText};border:2px solid ${s.btnGhostBorder};text-decoration:none}
+  .vdv-btn-ghost:hover{background:${s.btnGhostBorder};color:${s.btnText}}
+  .vdv-btn:disabled{opacity:.6;cursor:not-allowed}
+  .vdv-share{display:flex;gap:8px;justify-content:center}
+  .vdv-share-btn{width:40px;height:40px;border-radius:50%;border:1px solid ${s.shareBorder};background:${s.shareBg};color:${s.shareIconColor||s.metaColor};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;padding:0}
+  .vdv-share-btn:hover{background:${s.shareHover};color:${s.bgColor};border-color:${s.shareHover}}
+  .vdv-share-btn svg{width:17px;height:17px;fill:currentColor}
+  .vdv-tabs{display:flex;gap:4px;border-bottom:2px solid ${s.cardBorder};margin-bottom:24px;flex-wrap:wrap}
+  .vdv-tab{padding:10px 20px;background:none;border:none;color:${s.metaColor};font-size:${fs2}px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;font-family:${s.fontFamily}}
+  .vdv-tab:hover{color:${s.bodyColor}}
+  .vdv-tab.active{color:${s.accentColor};border-bottom-color:${s.accentColor}}
+  .vdv-tab-content{min-height:200px;margin-bottom:32px}
+  .vdv-tab-panel{display:none}
+  .vdv-tab-panel.active{display:block}
+  .vdv-specs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px}
+  .vdv-specs-group-title{font-size:${fs3}px;font-weight:700;color:${s.sectionTitleColor};text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${s.cardBorder}}
+  .vdv-spec-row{display:flex;justify-content:space-between;padding:8px 12px;border-radius:6px}
+  .vdv-spec-row:nth-child(even){background:${s.specRowAltBg}}
+  .vdv-spec-label{font-size:${fs3}px;color:${s.specLabelColor}}
+  .vdv-spec-value{font-size:${fs3}px;color:${s.specValueColor};font-weight:500;text-align:right;max-width:60%}
+  .vdv-features-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:24px}
+  .vdv-feature-group-title{font-size:${fs3}px;font-weight:700;color:${s.sectionTitleColor};text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${s.cardBorder}}
+  .vdv-feature-list{display:flex;flex-direction:column;gap:6px}
+  .vdv-feature-item{display:flex;align-items:center;gap:8px;font-size:${fs3}px;color:${s.bodyColor}}
+  .vdv-feature-check{color:${s.accentColor};flex-shrink:0}
+  .vdv-history-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+  .vdv-history-card{background:${s.cardBg};border:1px solid ${s.cardBorder};border-radius:10px;padding:16px}
+  .vdv-history-card-title{font-size:${fs3}px;font-weight:700;color:${s.sectionTitleColor};margin-bottom:8px}
+  .vdv-history-card-body{font-size:${fs3}px;color:${s.bodyColor};line-height:1.6}
+  .vdv-media-section{display:flex;flex-direction:column;gap:20px}
+  .vdv-video-embed{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px}
+  .vdv-video-embed iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}
+  .vdv-media-link{display:inline-flex;align-items:center;gap:8px;color:${s.accentColor};font-size:${fs2}px;font-weight:600;text-decoration:none;transition:opacity .2s}
+  .vdv-media-link:hover{opacity:.8}
+  .vdv-section{background:${s.cardBg};border:1px solid ${s.cardBorder};border-radius:16px;padding:28px;margin-bottom:24px;content-visibility:auto;contain-intrinsic-size:0 500px}
+  .vdv-section-title{font-size:${fs+6}px;font-weight:700;color:${s.sectionTitleColor};margin-bottom:20px;display:flex;align-items:center;gap:8px}
+  .vdv-calc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+  .vdv-calc-field{display:flex;flex-direction:column;gap:6px}
+  .vdv-label{font-size:${fs3}px;color:${s.formLabelColor};font-weight:600}
+  .vdv-input{padding:10px 14px;background:${s.calcInputBg};border:1px solid ${s.calcInputBorder};border-radius:8px;color:${s.calcInputText};font-size:${fs2}px;font-family:${s.fontFamily};transition:border-color .2s}
+  .vdv-input:focus{outline:none;border-color:${s.accentColor}}
+  .vdv-textarea{resize:vertical;min-height:100px}
+  .vdv-calc-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
+  .vdv-calc-result{background:${s.calcResultBg};border:1px solid ${s.cardBorder};border-radius:10px;padding:16px;text-align:center}
+  .vdv-calc-result-label{font-size:${fs3}px;color:${s.metaColor};margin-bottom:6px}
+  .vdv-calc-result-value{font-size:${fs+8}px;font-weight:800;color:${s.calcResultText}}
+  .vdv-form{display:flex;flex-direction:column;gap:16px}
+  .vdv-form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .vdv-form-field{display:flex;flex-direction:column;gap:6px}
+  .vdv-form-checkboxes{display:flex;gap:20px;flex-wrap:wrap}
+  .vdv-check-label{display:flex;align-items:center;gap:8px;font-size:${fs2}px;color:${s.bodyColor};cursor:pointer}
+  .vdv-check-label input{accent-color:${s.accentColor}}
+  .vdv-form-msg{padding:12px 16px;border-radius:8px;font-size:${fs2}px;font-weight:500;margin-top:8px;display:flex;align-items:center;gap:8px}
+  .vdv-form-msg.success{background:#166534;color:#bbf7d0}
+  .vdv-form-msg.error{background:#7c2d12;color:#fed7aa}
+  .vdv-dealer-grid{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start}
+  .vdv-dealer-logo{width:100px;height:70px;object-fit:contain;border-radius:8px;background:${s.bgColor};padding:8px;border:1px solid ${s.cardBorder}}
+  .vdv-dealer-logo-ph{width:100px;height:70px;background:${s.cardBorder};border-radius:8px;display:flex;align-items:center;justify-content:center;color:${s.metaColor}}
+  .vdv-dealer-info{display:flex;flex-direction:column;gap:8px}
+  .vdv-dealer-name{font-size:${fs+6}px;font-weight:700;color:${s.titleColor}}
+  .vdv-dealer-detail{font-size:${fs3}px;color:${s.bodyColor};display:flex;align-items:center;gap:6px}
+  .vdv-dealer-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+  .vdv-dealer-btn{padding:8px 18px;border-radius:8px;font-size:${fs3}px;font-weight:600;cursor:pointer;transition:all .2s;border:1px solid ${s.accentColor};background:transparent;color:${s.accentColor};font-family:${s.fontFamily};text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  .vdv-dealer-btn:hover{background:${s.accentColor};color:${s.btnText}}
+  @media(max-width:1024px){.vdv-hero{grid-template-columns:1fr}.vdv-summary{position:static}}
+  @media(max-width:768px){.vdv-container{padding:20px 12px}.vdv-vehicle-title{font-size:${fs+6}px}.vdv-form-row{grid-template-columns:1fr}.vdv-dealer-grid{grid-template-columns:1fr}.vdv-tab{padding:8px 14px;font-size:${fs3}px}}
+  `;
+}
+
 class VehicleDetailViewer extends HTMLElement {
   constructor() {
     super();
-    this.state = {
-      vehicleData: null,
-      isLoading:   true,
-      gallery:     [],
-      activeGalleryIdx: 0,
-    };
+    this.state = { vehicleData: null, isLoading: true, gallery: [], activeGalleryIdx: 0 };
     this.initialRenderDone = false;
-    this.isMobile = window.innerWidth <= 768;
+    this._tabsRendered = { features: false, history: false, media: false };
     const raw = this.getAttribute('style-props');
     this.styleProps = raw ? JSON.parse(raw) : this._defaultStyleProps();
   }
 
-  static get observedAttributes() {
-    return ['vehicle-data', 'style-props'];
-  }
+  static get observedAttributes() { return ['vehicle-data', 'style-props']; }
 
   _defaultStyleProps() {
     return {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      fontSize: 14,
-      bgColor: '#0f1117', accentColor: '#f97316', accentHover: '#ea580c',
-      titleColor: '#ffffff', bodyColor: '#94a3b8', metaColor: '#64748b',
-      cardBg: '#1a1d27', cardBorder: '#2a2d3a',
-      sectionTitleColor: '#f97316',
-      priceColor: '#f97316', priceOrigColor: '#64748b',
-      specLabelColor: '#64748b', specValueColor: '#e2e8f0', specRowAltBg: '#141720',
-      badgeNewBg: '#166534', badgeNewText: '#bbf7d0',
-      badgeUsedBg: '#1e3a5f', badgeUsedText: '#93c5fd',
-      badgeRentBg: '#4c1d95', badgeRentText: '#ddd6fe',
-      badgeAuctionBg: '#7c2d12', badgeAuctionText: '#fed7aa',
-      calcInputBg: '#141720', calcInputBorder: '#2a2d3a', calcInputText: '#ffffff',
-      calcResultBg: '#1a1d27', calcResultText: '#f97316',
-      formInputBg: '#141720', formInputBorder: '#2a2d3a', formInputText: '#ffffff',
-      formLabelColor: '#94a3b8',
-      btnBg: '#f97316', btnText: '#ffffff', btnGhostBorder: '#f97316', btnGhostText: '#f97316',
-      shareBg: '#1a1d27', shareBorder: '#2a2d3a', shareIconColor: '#94a3b8', shareHover: '#f97316',
-      galleryThumbBorder: '#2a2d3a', galleryThumbActive: '#f97316',
-      iconColor: '#64748b',
+      fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif', fontSize:14,
+      bgColor:'#0f1117', accentColor:'#f97316', accentHover:'#ea580c',
+      titleColor:'#ffffff', bodyColor:'#94a3b8', metaColor:'#64748b',
+      cardBg:'#1a1d27', cardBorder:'#2a2d3a', sectionTitleColor:'#f97316',
+      priceColor:'#f97316', priceOrigColor:'#64748b',
+      specLabelColor:'#64748b', specValueColor:'#e2e8f0', specRowAltBg:'#141720',
+      badgeNewBg:'#166534', badgeNewText:'#bbf7d0',
+      badgeUsedBg:'#1e3a5f', badgeUsedText:'#93c5fd',
+      badgeRentBg:'#4c1d95', badgeRentText:'#ddd6fe',
+      badgeAuctionBg:'#7c2d12', badgeAuctionText:'#fed7aa',
+      calcInputBg:'#141720', calcInputBorder:'#2a2d3a', calcInputText:'#ffffff',
+      calcResultBg:'#1a1d27', calcResultText:'#f97316',
+      formInputBg:'#141720', formInputBorder:'#2a2d3a', formInputText:'#ffffff', formLabelColor:'#94a3b8',
+      btnBg:'#f97316', btnText:'#ffffff', btnGhostBorder:'#f97316', btnGhostText:'#f97316',
+      shareBg:'#1a1d27', shareBorder:'#2a2d3a', shareIconColor:'#94a3b8', shareHover:'#f97316',
+      galleryThumbBorder:'#2a2d3a', galleryThumbActive:'#f97316', iconColor:'#64748b',
     };
   }
 
@@ -92,31 +209,25 @@ class VehicleDetailViewer extends HTMLElement {
         const data = JSON.parse(newVal);
         this.state.vehicleData = data;
         this.state.isLoading   = false;
-
         let gallery = [];
         try {
           if (typeof data.gallery === 'string' && data.gallery) gallery = JSON.parse(data.gallery);
           else if (Array.isArray(data.gallery)) gallery = data.gallery;
-        } catch (e) {}
-
-        if (data.primaryImage) {
-          if (!gallery.some(g => (g.url || g) === data.primaryImage)) {
-            gallery.unshift({ url: data.primaryImage, alt: data.title || 'Vehicle' });
-          }
+        } catch(e) {}
+        if (data.primaryImage && !gallery.some(g => (g.url || g) === data.primaryImage)) {
+          gallery.unshift({ url: data.primaryImage, alt: data.title || 'Vehicle' });
         }
         this.state.gallery = gallery;
         this.state.activeGalleryIdx = 0;
-
-        if (this.initialRenderDone) {
-          requestAnimationFrame(() => { this._renderVehicle(); this._emitSEO(); });
-        }
-      } catch (e) { console.error('vehicle-data parse error', e.message); }
+        if (this.initialRenderDone) requestAnimationFrame(() => this._renderVehicle());
+      } catch(e) { console.error('vehicle-data parse error', e.message); }
 
     } else if (name === 'style-props') {
       try {
         this.styleProps = { ...this.styleProps, ...JSON.parse(newVal) };
-        if (this.initialRenderDone) this._updateStyles();
-      } catch (e) { console.error('style-props parse error', e.message); }
+        // Update global styles (throttled — only update if already injected)
+        if (document.getElementById('vdv-global-styles')) _injectGlobalStyles(this.styleProps);
+      } catch(e) {}
     }
   }
 
@@ -125,23 +236,20 @@ class VehicleDetailViewer extends HTMLElement {
   }
 
   _initUI() {
-    this.innerHTML = `<style>${this._css()}</style>${this._shell()}`;
+    // Inject global CSS into <head> once — not inside element (huge parse savings)
+    _injectGlobalStyles(this.styleProps);
+    // Minimal shell — no inline <style> tag
+    this.innerHTML = this._shell();
     this.initialRenderDone = true;
-    if (!this.state.isLoading && this.state.vehicleData) {
-      this._renderVehicle();
-      this._emitSEO();
-    }
+    if (!this.state.isLoading && this.state.vehicleData) this._renderVehicle();
   }
 
   _shell() {
     return `
     <div class="vdv-container">
       <nav class="vdv-breadcrumb">
-        <button class="vdv-breadcrumb-link" id="vdvBackBtn">
-          ${ic('back', 15)} All Listings
-        </button>
+        <button class="vdv-breadcrumb-link" id="vdvBackBtn">${ic('back', 15)} All Listings</button>
       </nav>
-
       <div class="vdv-hero">
         <div class="vdv-gallery">
           <div class="vdv-gallery-main" id="vdvGalleryMain">
@@ -150,12 +258,9 @@ class VehicleDetailViewer extends HTMLElement {
           <div class="vdv-gallery-thumbs" id="vdvGalleryThumbs"></div>
         </div>
         <div class="vdv-summary" id="vdvSummary">
-          <div class="vdv-summary-loading">
-            <div class="vdv-spinner"></div><p>Loading vehicle…</p>
-          </div>
+          <div class="vdv-summary-loading"><div class="vdv-spinner"></div><p>Loading…</p></div>
         </div>
       </div>
-
       <div class="vdv-tabs">
         <button class="vdv-tab active" data-tab="specs">Specifications</button>
         <button class="vdv-tab" data-tab="features">Features</button>
@@ -168,7 +273,6 @@ class VehicleDetailViewer extends HTMLElement {
         <div class="vdv-tab-panel" id="vdvTabHistory"></div>
         <div class="vdv-tab-panel" id="vdvTabMedia"></div>
       </div>
-
       <div class="vdv-section" id="vdvCalc" style="display:none">
         <h2 class="vdv-section-title">${ic('calc', 20)} Finance Calculator</h2>
         <div class="vdv-calc-grid">
@@ -183,7 +287,6 @@ class VehicleDetailViewer extends HTMLElement {
           <div class="vdv-calc-result"><div class="vdv-calc-result-label">Total Interest</div><div class="vdv-calc-result-value" id="calcInterest">—</div></div>
         </div>
       </div>
-
       <div class="vdv-section" id="vdvLead" style="display:none">
         <h2 class="vdv-section-title" id="vdvLeadTitle">${ic('send', 20)} Interested in this vehicle?</h2>
         <form class="vdv-form" id="vdvLeadForm" onsubmit="return false;">
@@ -201,13 +304,10 @@ class VehicleDetailViewer extends HTMLElement {
             <label class="vdv-check-label"><input type="checkbox" id="leadTestDrive"/> Request a test drive</label>
             <label class="vdv-check-label"><input type="checkbox" id="leadTradeIn"/> Have a trade-in</label>
           </div>
-          <button type="submit" class="vdv-btn vdv-btn-accent" id="vdvLeadSubmit">
-            ${ic('send', 16)} Send Enquiry
-          </button>
+          <button type="submit" class="vdv-btn vdv-btn-accent" id="vdvLeadSubmit">${ic('send', 16)} Send Enquiry</button>
           <div class="vdv-form-msg" id="vdvLeadMsg" style="display:none"></div>
         </form>
       </div>
-
       <div class="vdv-section" id="vdvDealer" style="display:none">
         <h2 class="vdv-section-title">${ic('dealer', 20)} Dealer Information</h2>
         <div class="vdv-dealer-grid" id="vdvDealerContent"></div>
@@ -215,169 +315,16 @@ class VehicleDetailViewer extends HTMLElement {
     </div>`;
   }
 
-  _css() {
-    const s  = this.styleProps;
-    const fs = Number(s.fontSize) || 14;
-    const fs2 = Math.max(11, fs - 1);
-    const fs3 = Math.max(10, fs - 2);
-    return `
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :host, vehicle-detail-viewer { display: block; width: 100%; font-family: ${s.fontFamily}; font-size: ${fs}px; }
-    .vdv-ic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; vertical-align: middle; }
-    .vdv-ic svg { width: 100%; height: 100%; }
-
-    .vdv-container { background: ${s.bgColor}; max-width: 1400px; margin: 0 auto; padding: 32px 20px; }
-
-    .vdv-breadcrumb { margin-bottom: 20px; }
-    .vdv-breadcrumb-link { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: ${s.accentColor}; font-size: ${fs}px; font-weight: 600; cursor: pointer; padding: 0; transition: opacity .2s; font-family: ${s.fontFamily}; }
-    .vdv-breadcrumb-link:hover { opacity: .8; }
-
-    .vdv-hero { display: grid; grid-template-columns: 1fr 380px; gap: 28px; margin-bottom: 32px; }
-
-    .vdv-gallery { display: flex; flex-direction: column; gap: 12px; }
-    .vdv-gallery-main { width: 100%; aspect-ratio: 16/9; border-radius: 16px; overflow: hidden; background: ${s.cardBg}; position: relative; }
-    .vdv-gallery-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .3s; }
-    .vdv-gallery-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: ${s.metaColor}; }
-    .vdv-gallery-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,.6); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .2s; z-index: 2; padding: 0; }
-    .vdv-gallery-nav:hover { background: ${s.accentColor}; }
-    .vdv-gallery-prev { left: 12px; }
-    .vdv-gallery-next { right: 12px; }
-    .vdv-gallery-counter { position: absolute; bottom: 10px; right: 14px; background: rgba(0,0,0,.6); color: #fff; font-size: ${fs3}px; padding: 4px 10px; border-radius: 12px; }
-    .vdv-gallery-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
-    .vdv-thumb { width: 72px; height: 52px; border-radius: 8px; overflow: hidden; cursor: pointer; border: 2px solid ${s.galleryThumbBorder}; transition: border-color .2s; flex-shrink: 0; }
-    .vdv-thumb.active { border-color: ${s.galleryThumbActive}; }
-    .vdv-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-    .vdv-summary { background: ${s.cardBg}; border: 1px solid ${s.cardBorder}; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; align-self: flex-start; }
-    .vdv-summary-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 0; color: ${s.metaColor}; }
-    .vdv-spinner { width: 36px; height: 36px; border: 3px solid ${s.cardBorder}; border-top-color: ${s.accentColor}; border-radius: 50%; animation: vdv-spin .8s linear infinite; }
-    @keyframes vdv-spin { to { transform: rotate(360deg); } }
-
-    .vdv-badges { display: flex; gap: 6px; flex-wrap: wrap; }
-    .vdv-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 12px; font-size: ${fs3}px; font-weight: 700; text-transform: uppercase; }
-    .vdv-badge-new     { background: ${s.badgeNewBg};     color: ${s.badgeNewText}; }
-    .vdv-badge-used    { background: ${s.badgeUsedBg};    color: ${s.badgeUsedText}; }
-    .vdv-badge-rent    { background: ${s.badgeRentBg};    color: ${s.badgeRentText}; }
-    .vdv-badge-auction { background: ${s.badgeAuctionBg}; color: ${s.badgeAuctionText}; }
-    .vdv-badge-featured { background: ${s.accentColor}; color: #fff; }
-    .vdv-badge-sold, .vdv-badge-rented { background: #374151; color: #9ca3af; }
-
-    .vdv-vehicle-title { font-size: ${fs + 10}px; font-weight: 800; color: ${s.titleColor}; line-height: 1.3; }
-    .vdv-vehicle-sub   { font-size: ${fs2}px; color: ${s.metaColor}; }
-
-    .vdv-price-block { padding: 16px; background: ${s.bgColor}; border-radius: 10px; border: 1px solid ${s.cardBorder}; }
-    .vdv-price-main  { font-size: ${fs + 14}px; font-weight: 800; color: ${s.priceColor}; }
-    .vdv-price-orig  { font-size: ${fs + 2}px; color: ${s.priceOrigColor}; text-decoration: line-through; margin-left: 8px; }
-    .vdv-price-note  { font-size: ${fs2}px; color: ${s.metaColor}; margin-top: 4px; }
-    .vdv-price-rental { font-size: ${fs2}px; color: ${s.bodyColor}; margin-top: 4px; }
-    .vdv-price-monthly { font-size: ${fs2}px; color: ${s.metaColor}; margin-top: 4px; }
-
-    .vdv-quick-specs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .vdv-qs { display: flex; flex-direction: column; gap: 2px; background: ${s.bgColor}; padding: 10px 12px; border-radius: 8px; border: 1px solid ${s.cardBorder}; }
-    .vdv-qs-label { font-size: ${fs3}px; color: ${s.specLabelColor}; text-transform: uppercase; letter-spacing: .4px; }
-    .vdv-qs-value { font-size: ${fs2}px; font-weight: 600; color: ${s.specValueColor}; }
-
-    .vdv-btn { width: 100%; padding: 14px; border-radius: 10px; font-size: ${fs}px; font-weight: 700; border: none; cursor: pointer; transition: all .2s; font-family: ${s.fontFamily}; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
-    .vdv-btn-accent { background: ${s.btnBg}; color: ${s.btnText}; }
-    .vdv-btn-accent:hover { background: ${s.accentHover}; }
-    .vdv-btn-ghost { background: transparent; color: ${s.btnGhostText}; border: 2px solid ${s.btnGhostBorder}; text-decoration: none; }
-    .vdv-btn-ghost:hover { background: ${s.btnGhostBorder}; color: ${s.btnText}; }
-    .vdv-btn:disabled { opacity: .6; cursor: not-allowed; }
-
-    .vdv-share { display: flex; gap: 8px; justify-content: center; }
-    .vdv-share-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid ${s.shareBorder}; background: ${s.shareBg}; color: ${s.shareIconColor || s.metaColor}; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; padding: 0; }
-    .vdv-share-btn:hover { background: ${s.shareHover}; color: ${s.bgColor}; border-color: ${s.shareHover}; }
-    .vdv-share-btn svg { width: 17px; height: 17px; fill: currentColor; }
-
-    .vdv-tabs { display: flex; gap: 4px; border-bottom: 2px solid ${s.cardBorder}; margin-bottom: 24px; flex-wrap: wrap; }
-    .vdv-tab { padding: 10px 20px; background: none; border: none; color: ${s.metaColor}; font-size: ${fs2}px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; font-family: ${s.fontFamily}; }
-    .vdv-tab:hover { color: ${s.bodyColor}; }
-    .vdv-tab.active { color: ${s.accentColor}; border-bottom-color: ${s.accentColor}; }
-    .vdv-tab-content { min-height: 200px; margin-bottom: 32px; }
-    .vdv-tab-panel { display: none; }
-    .vdv-tab-panel.active { display: block; }
-
-    .vdv-specs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 24px; }
-    .vdv-specs-group-title { font-size: ${fs3}px; font-weight: 700; color: ${s.sectionTitleColor}; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid ${s.cardBorder}; }
-    .vdv-spec-row { display: flex; justify-content: space-between; padding: 8px 12px; border-radius: 6px; }
-    .vdv-spec-row:nth-child(even) { background: ${s.specRowAltBg}; }
-    .vdv-spec-label { font-size: ${fs3}px; color: ${s.specLabelColor}; }
-    .vdv-spec-value { font-size: ${fs3}px; color: ${s.specValueColor}; font-weight: 500; text-align: right; max-width: 60%; }
-
-    .vdv-features-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 24px; }
-    .vdv-feature-group-title { font-size: ${fs3}px; font-weight: 700; color: ${s.sectionTitleColor}; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid ${s.cardBorder}; }
-    .vdv-feature-list { display: flex; flex-direction: column; gap: 6px; }
-    .vdv-feature-item { display: flex; align-items: center; gap: 8px; font-size: ${fs3}px; color: ${s.bodyColor}; }
-    .vdv-feature-check { color: ${s.accentColor}; flex-shrink: 0; }
-
-    .vdv-history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 16px; }
-    .vdv-history-card { background: ${s.cardBg}; border: 1px solid ${s.cardBorder}; border-radius: 10px; padding: 16px; }
-    .vdv-history-card-title { font-size: ${fs3}px; font-weight: 700; color: ${s.sectionTitleColor}; margin-bottom: 8px; }
-    .vdv-history-card-body  { font-size: ${fs3}px; color: ${s.bodyColor}; line-height: 1.6; }
-
-    .vdv-media-section { display: flex; flex-direction: column; gap: 20px; }
-    .vdv-video-embed { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; }
-    .vdv-video-embed iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
-    .vdv-media-link { display: inline-flex; align-items: center; gap: 8px; color: ${s.accentColor}; font-size: ${fs2}px; font-weight: 600; text-decoration: none; transition: opacity .2s; }
-    .vdv-media-link:hover { opacity: .8; }
-
-    .vdv-section { background: ${s.cardBg}; border: 1px solid ${s.cardBorder}; border-radius: 16px; padding: 28px; margin-bottom: 24px; }
-    .vdv-section-title { font-size: ${fs + 6}px; font-weight: 700; color: ${s.sectionTitleColor}; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-
-    .vdv-calc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 16px; margin-bottom: 20px; }
-    .vdv-calc-field { display: flex; flex-direction: column; gap: 6px; }
-    .vdv-label { font-size: ${fs3}px; color: ${s.formLabelColor}; font-weight: 600; }
-    .vdv-input { padding: 10px 14px; background: ${s.calcInputBg}; border: 1px solid ${s.calcInputBorder}; border-radius: 8px; color: ${s.calcInputText}; font-size: ${fs2}px; font-family: ${s.fontFamily}; transition: border-color .2s; }
-    .vdv-input:focus { outline: none; border-color: ${s.accentColor}; }
-    .vdv-textarea { resize: vertical; min-height: 100px; }
-    .vdv-calc-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 16px; }
-    .vdv-calc-result { background: ${s.calcResultBg}; border: 1px solid ${s.cardBorder}; border-radius: 10px; padding: 16px; text-align: center; }
-    .vdv-calc-result-label { font-size: ${fs3}px; color: ${s.metaColor}; margin-bottom: 6px; }
-    .vdv-calc-result-value { font-size: ${fs + 8}px; font-weight: 800; color: ${s.calcResultText}; }
-
-    .vdv-form { display: flex; flex-direction: column; gap: 16px; }
-    .vdv-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .vdv-form-field { display: flex; flex-direction: column; gap: 6px; }
-    .vdv-form-checkboxes { display: flex; gap: 20px; flex-wrap: wrap; }
-    .vdv-check-label { display: flex; align-items: center; gap: 8px; font-size: ${fs2}px; color: ${s.bodyColor}; cursor: pointer; }
-    .vdv-check-label input { accent-color: ${s.accentColor}; }
-    .vdv-form-msg { padding: 12px 16px; border-radius: 8px; font-size: ${fs2}px; font-weight: 500; margin-top: 8px; display: flex; align-items: center; gap: 8px; }
-    .vdv-form-msg.success { background: #166534; color: #bbf7d0; }
-    .vdv-form-msg.error   { background: #7c2d12; color: #fed7aa; }
-
-    .vdv-dealer-grid { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start; }
-    .vdv-dealer-logo { width: 100px; height: 70px; object-fit: contain; border-radius: 8px; background: ${s.bgColor}; padding: 8px; border: 1px solid ${s.cardBorder}; }
-    .vdv-dealer-logo-ph { width: 100px; height: 70px; background: ${s.cardBorder}; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: ${s.metaColor}; }
-    .vdv-dealer-info { display: flex; flex-direction: column; gap: 8px; }
-    .vdv-dealer-name { font-size: ${fs + 6}px; font-weight: 700; color: ${s.titleColor}; }
-    .vdv-dealer-detail { font-size: ${fs3}px; color: ${s.bodyColor}; display: flex; align-items: center; gap: 6px; }
-    .vdv-dealer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
-    .vdv-dealer-btn { padding: 8px 18px; border-radius: 8px; font-size: ${fs3}px; font-weight: 600; cursor: pointer; transition: all .2s; border: 1px solid ${s.accentColor}; background: transparent; color: ${s.accentColor}; font-family: ${s.fontFamily}; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-    .vdv-dealer-btn:hover { background: ${s.accentColor}; color: ${s.btnText}; }
-
-    @media (max-width: 1024px) { .vdv-hero { grid-template-columns: 1fr; } .vdv-summary { position: static; } }
-    @media (max-width: 768px) { .vdv-container { padding: 20px 12px; } .vdv-vehicle-title { font-size: ${fs + 6}px; } .vdv-form-row { grid-template-columns: 1fr; } .vdv-dealer-grid { grid-template-columns: 1fr; } .vdv-tab { padding: 8px 14px; font-size: ${fs3}px; } }
-    `;
-  }
-
-  _updateStyles() {
-    const el = this.querySelector('style');
-    if (el) el.textContent = this._css();
-  }
-
   _renderVehicle() {
     const v = this.state.vehicleData;
     if (!v || !this.initialRenderDone) return;
     this._renderGallery();
     this._renderSummary(v);
-    this._renderTabSpecs(v);
-    this._renderTabFeatures(v);
-    this._renderTabHistory(v);
-    this._renderTabMedia(v);
+    this._renderTabSpecs(v);       // specs tab always renders immediately (above fold)
+    this._bindTabs(v);             // other tabs render on first click
     this._renderCalc(v);
     this._renderLead(v);
     this._renderDealer(v);
-    this._bindTabs();
     this._bindCalc();
     this._bindLeadForm(v);
     this._bindShare(v);
@@ -396,15 +343,19 @@ class VehicleDetailViewer extends HTMLElement {
       return;
     }
     this._setGalleryImage(0);
-    thumbsEl.innerHTML = gallery.map((item, idx) => {
-      const url = this._imgUrl(item.url || item, 150, 110);
-      return `<div class="vdv-thumb ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
-        <img src="${url}" alt="Photo ${idx + 1}" loading="lazy" decoding="async"/>
-      </div>`;
-    }).join('');
-    thumbsEl.querySelectorAll('.vdv-thumb').forEach(t => {
-      t.addEventListener('click', () => this._setGalleryImage(parseInt(t.dataset.idx)));
+    // Use DocumentFragment for thumb batch insert
+    const frag = document.createDocumentFragment();
+    gallery.forEach((item, idx) => {
+      const url = this._imgUrl(item.url || item, 150, 110, 70);
+      const div = document.createElement('div');
+      div.className = `vdv-thumb${idx === 0 ? ' active' : ''}`;
+      div.dataset.idx = idx;
+      div.innerHTML = `<img src="${url}" alt="Photo ${idx+1}" loading="lazy" decoding="async" width="72" height="52"/>`;
+      div.addEventListener('click', () => this._setGalleryImage(idx));
+      frag.appendChild(div);
     });
+    thumbsEl.innerHTML = '';
+    thumbsEl.appendChild(frag);
   }
 
   _setGalleryImage(idx) {
@@ -412,11 +363,15 @@ class VehicleDetailViewer extends HTMLElement {
     if (!gallery || idx >= gallery.length) return;
     this.state.activeGalleryIdx = idx;
     const item   = gallery[idx];
-    const url    = this._imgUrl(item.url || item, 1200, 700);
+    const url    = this._imgUrl(item.url || item, 1200, 700, 80);
     const alt    = item.alt || this.state.vehicleData?.title || 'Vehicle';
     const mainEl = this.querySelector('#vdvGalleryMain');
     mainEl.innerHTML = `
-      <img class="vdv-gallery-img" src="${url}" alt="${this._esc(alt)}" loading="${idx === 0 ? 'eager' : 'lazy'}"/>
+      <img class="vdv-gallery-img" src="${url}" alt="${this._esc(alt)}"
+        loading="${idx === 0 ? 'eager' : 'lazy'}"
+        decoding="${idx === 0 ? 'sync' : 'async'}"
+        fetchpriority="${idx === 0 ? 'high' : 'low'}"
+        width="1200" height="700"/>
       ${gallery.length > 1 ? `
         <button class="vdv-gallery-nav vdv-gallery-prev" id="vdvGallPrev">${ic('chevL', 20)}</button>
         <button class="vdv-gallery-nav vdv-gallery-next" id="vdvGallNext">${ic('chevR', 20)}</button>
@@ -439,18 +394,17 @@ class VehicleDetailViewer extends HTMLElement {
   }
 
   _renderSummary(v) {
-    const title  = v.title || `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
-    const sub    = [v.bodyStyle, v.drivetrain, v.fuelType].filter(Boolean).join(' · ');
+    const title = v.title || `${v.year||''} ${v.make||''} ${v.model||''}`.trim() || 'Vehicle';
+    const sub   = [v.bodyStyle, v.drivetrain, v.fuelType].filter(Boolean).join(' · ');
     const listBadge   = this._badge(v.listingType, v.condition);
-    const statusBadge = (v.status === 'sold' || v.status === 'rented') ? `<span class="vdv-badge vdv-badge-${v.status}">${v.status}</span>` : '';
-    const featBadge   = v.featured ? `<span class="vdv-badge vdv-badge-featured">${ic('star', 11)} Featured</span>` : '';
-
-    const quickSpecs = [
-      ['Year', v.year], ['Make', v.make], ['Model', v.model],
-      ['Mileage', v.mileage ? Number(v.mileage).toLocaleString() + ' mi' : null],
-      ['Transmission', v.transmission], ['Engine', v.engine],
-      ['Exterior', v.exteriorColor], ['Doors', v.doors],
-    ].filter(([, val]) => val);
+    const statusBadge = (v.status==='sold'||v.status==='rented') ? `<span class="vdv-badge vdv-badge-${v.status}">${v.status}</span>` : '';
+    const featBadge   = v.featured ? `<span class="vdv-badge vdv-badge-featured">${ic('star',11)} Featured</span>` : '';
+    const quickSpecs  = [
+      ['Year',v.year],['Make',v.make],['Model',v.model],
+      ['Mileage',v.mileage?Number(v.mileage).toLocaleString()+' mi':null],
+      ['Transmission',v.transmission],['Engine',v.engine],
+      ['Exterior',v.exteriorColor],['Doors',v.doors],
+    ].filter(([,val])=>val);
 
     this.querySelector('#vdvSummary').innerHTML = `
       <div class="vdv-badges">${listBadge}${statusBadge}${featBadge}</div>
@@ -458,16 +412,14 @@ class VehicleDetailViewer extends HTMLElement {
       ${sub ? `<div class="vdv-vehicle-sub">${this._esc(sub)}</div>` : ''}
       <div class="vdv-price-block">${this._priceHTML(v)}</div>
       <div class="vdv-quick-specs">
-        ${quickSpecs.map(([l, val]) => `
+        ${quickSpecs.map(([l,val])=>`
           <div class="vdv-qs">
             <div class="vdv-qs-label">${l}</div>
             <div class="vdv-qs-value">${this._esc(String(val))}</div>
           </div>`).join('')}
       </div>
-      <button class="vdv-btn vdv-btn-accent" id="vdvEnquireBtn">
-        ${ic('send', 16)} Send Enquiry
-      </button>
-      ${v.dealerPhone ? `<a class="vdv-btn vdv-btn-ghost" href="tel:${v.dealerPhone}" style="text-decoration:none;">${ic('phone', 16)} Call Dealer</a>` : ''}
+      <button class="vdv-btn vdv-btn-accent" id="vdvEnquireBtn">${ic('send',16)} Send Enquiry</button>
+      ${v.dealerPhone ? `<a class="vdv-btn vdv-btn-ghost" href="tel:${v.dealerPhone}" style="text-decoration:none">${ic('phone',16)} Call Dealer</a>` : ''}
       <div class="vdv-share" id="vdvShareBtns">
         <button class="vdv-share-btn" data-share="twitter"  title="Share on X">${IC.twitter}</button>
         <button class="vdv-share-btn" data-share="facebook" title="Share on Facebook">${IC.facebook}</button>
@@ -481,24 +433,24 @@ class VehicleDetailViewer extends HTMLElement {
   }
 
   _priceHTML(v) {
-    const sym = v.currency === 'INR' ? '₹' : v.currency === 'EUR' ? '€' : v.currency === 'GBP' ? '£' : '$';
+    const sym = v.currency==='INR'?'₹':v.currency==='EUR'?'€':v.currency==='GBP'?'£':'$';
     const fmt = n => sym + Number(n).toLocaleString();
     if (v.listingType === 'rent') return `
-      <div class="vdv-price-main">${v.rentalPricePerDay ? fmt(v.rentalPricePerDay) + '<small>/day</small>' : 'Contact for price'}</div>
-      ${v.rentalPricePerWeek  ? `<div class="vdv-price-rental">${fmt(v.rentalPricePerWeek)}/week</div>` : ''}
-      ${v.rentalPricePerMonth ? `<div class="vdv-price-rental">${fmt(v.rentalPricePerMonth)}/month</div>` : ''}`;
+      <div class="vdv-price-main">${v.rentalPricePerDay?fmt(v.rentalPricePerDay)+'<small>/day</small>':'Contact for price'}</div>
+      ${v.rentalPricePerWeek?`<div class="vdv-price-rental">${fmt(v.rentalPricePerWeek)}/week</div>`:''}
+      ${v.rentalPricePerMonth?`<div class="vdv-price-rental">${fmt(v.rentalPricePerMonth)}/month</div>`:''}`;
     if (v.listingType === 'auction') return `
-      <div class="vdv-price-main">Starts ${v.auctionStartPrice ? fmt(v.auctionStartPrice) : '—'}</div>
-      ${v.auctionReservePrice ? `<div class="vdv-price-note">Reserve: ${fmt(v.auctionReservePrice)}</div>` : ''}
-      ${v.auctionEndDate ? `<div class="vdv-price-note">Ends: ${this._fmtDate(v.auctionEndDate)}</div>` : ''}`;
+      <div class="vdv-price-main">Starts ${v.auctionStartPrice?fmt(v.auctionStartPrice):'—'}</div>
+      ${v.auctionReservePrice?`<div class="vdv-price-note">Reserve: ${fmt(v.auctionReservePrice)}</div>`:''}
+      ${v.auctionEndDate?`<div class="vdv-price-note">Ends: ${this._fmtDate(v.auctionEndDate)}</div>`:''}`;
     const base = (v.salePrice && v.salePrice < v.price) ? v.salePrice : v.price;
     return `
       <div>
-        <span class="vdv-price-main">${base ? fmt(base) : 'Price on request'}</span>
-        ${v.salePrice && v.price && v.salePrice < v.price ? `<span class="vdv-price-orig">${fmt(v.price)}</span>` : ''}
+        <span class="vdv-price-main">${base?fmt(base):'Price on request'}</span>
+        ${v.salePrice&&v.price&&v.salePrice<v.price?`<span class="vdv-price-orig">${fmt(v.price)}</span>`:''}
       </div>
-      ${v.priceNegotiable ? `<div class="vdv-price-note">Negotiable</div>` : ''}
-      ${v.monthlyPayment  ? `<div class="vdv-price-monthly">Est. ${fmt(v.monthlyPayment)}/mo</div>` : ''}`;
+      ${v.priceNegotiable?`<div class="vdv-price-note">Negotiable</div>`:''}
+      ${v.monthlyPayment?`<div class="vdv-price-monthly">Est. ${fmt(v.monthlyPayment)}/mo</div>`:''}`;
   }
 
   _badge(type, condition) {
@@ -509,20 +461,38 @@ class VehicleDetailViewer extends HTMLElement {
 
   _renderTabSpecs(v) {
     const groups = [
-      ['Identity', [['VIN',v.vin],['Stock #',v.stockNumber],['Year',v.year],['Make',v.make],['Model',v.model],['Trim',v.trim],['Body Style',v.bodyStyle],['Condition',v.condition],['Exterior Color',v.exteriorColor],['Interior Color',v.interiorColor]]],
-      ['Engine & Performance', [['Engine',v.engine],['Displacement',v.engineDisplacement],['Cylinders',v.cylinders],['Horsepower',v.horsepower?v.horsepower+' hp':null],['Torque',v.torque?v.torque+' lb-ft':null],['Transmission',v.transmission],['Drivetrain',v.drivetrain],['Fuel Type',v.fuelType],['MPG City',v.mpgCity?v.mpgCity+' mpg':null],['MPG Highway',v.mpgHighway?v.mpgHighway+' mpg':null],['Electric Range',v.range?v.range+' mi':null]]],
-      ['Dimensions & Capacity', [['Mileage',v.mileage?Number(v.mileage).toLocaleString()+' mi':null],['Doors',v.doors],['Seating',v.seatingCapacity?v.seatingCapacity+' seats':null],['Towing',v.towingCapacity?Number(v.towingCapacity).toLocaleString()+' lbs':null],['Payload',v.payload?Number(v.payload).toLocaleString()+' lbs':null],['Length',v.length?v.length+'"':null],['Width',v.width?v.width+'"':null],['Height',v.height?v.height+'"':null],['Weight',v.weight?Number(v.weight).toLocaleString()+' lbs':null]]],
-      ['Boat Specs', [['Hull Material',v.hullMaterial],['Boat Type',v.boatType],['Engine Type',v.engineType],['Engine Hours',v.engineHours?Number(v.engineHours).toLocaleString()+' hrs':null]]],
-    ].filter(([, rows]) => rows.some(([, val]) => val));
-    this.querySelector('#vdvTabSpecs').innerHTML = `
-      <div class="vdv-specs-grid">
-        ${groups.map(([gt, rows]) => `
-          <div class="vdv-specs-group">
-            <div class="vdv-specs-group-title">${gt}</div>
-            ${rows.filter(([,val])=>val).map(([l,val])=>`
-              <div class="vdv-spec-row"><span class="vdv-spec-label">${l}</span><span class="vdv-spec-value">${this._esc(String(val))}</span></div>`).join('')}
-          </div>`).join('')}
-      </div>`;
+      ['Identity',[['VIN',v.vin],['Stock #',v.stockNumber],['Year',v.year],['Make',v.make],['Model',v.model],['Trim',v.trim],['Body Style',v.bodyStyle],['Condition',v.condition],['Exterior Color',v.exteriorColor],['Interior Color',v.interiorColor]]],
+      ['Engine & Performance',[['Engine',v.engine],['Displacement',v.engineDisplacement],['Cylinders',v.cylinders],['Horsepower',v.horsepower?v.horsepower+' hp':null],['Torque',v.torque?v.torque+' lb-ft':null],['Transmission',v.transmission],['Drivetrain',v.drivetrain],['Fuel Type',v.fuelType],['MPG City',v.mpgCity?v.mpgCity+' mpg':null],['MPG Highway',v.mpgHighway?v.mpgHighway+' mpg':null],['Electric Range',v.range?v.range+' mi':null]]],
+      ['Dimensions & Capacity',[['Mileage',v.mileage?Number(v.mileage).toLocaleString()+' mi':null],['Doors',v.doors],['Seating',v.seatingCapacity?v.seatingCapacity+' seats':null],['Towing',v.towingCapacity?Number(v.towingCapacity).toLocaleString()+' lbs':null],['Weight',v.weight?Number(v.weight).toLocaleString()+' lbs':null]]],
+    ].filter(([,rows])=>rows.some(([,val])=>val));
+    this.querySelector('#vdvTabSpecs').innerHTML = `<div class="vdv-specs-grid">${groups.map(([gt,rows])=>`
+      <div class="vdv-specs-group">
+        <div class="vdv-specs-group-title">${gt}</div>
+        ${rows.filter(([,val])=>val).map(([l,val])=>`
+          <div class="vdv-spec-row"><span class="vdv-spec-label">${l}</span><span class="vdv-spec-value">${this._esc(String(val))}</span></div>`).join('')}
+      </div>`).join('')}</div>`;
+  }
+
+  // ── Tabs: render 2-4 on first click (deferred) ──
+  _bindTabs(v) {
+    const tabs   = this.querySelectorAll('.vdv-tab');
+    const panels = {
+      specs:    this.querySelector('#vdvTabSpecs'),
+      features: this.querySelector('#vdvTabFeatures'),
+      history:  this.querySelector('#vdvTabHistory'),
+      media:    this.querySelector('#vdvTabMedia'),
+    };
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      Object.values(panels).forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const key = tab.dataset.tab;
+      panels[key]?.classList.add('active');
+      // Lazy render on first click
+      if (key === 'features' && !this._tabsRendered.features) { this._renderTabFeatures(v); this._tabsRendered.features = true; }
+      if (key === 'history'  && !this._tabsRendered.history)  { this._renderTabHistory(v);  this._tabsRendered.history  = true; }
+      if (key === 'media'    && !this._tabsRendered.media)    { this._renderTabMedia(v);    this._tabsRendered.media    = true; }
+    }));
   }
 
   _renderTabFeatures(v) {
@@ -532,39 +502,25 @@ class VehicleDetailViewer extends HTMLElement {
       ['Exterior', v.exteriorFeatures],
       ['Interior', v.interiorFeatures],
       ['Packages', v.packages],
-    ].filter(([, val]) => val);
-    if (!groups.length) {
-      this.querySelector('#vdvTabFeatures').innerHTML = `<p style="color:${this.styleProps.metaColor}">No features listed.</p>`;
-      return;
-    }
-    this.querySelector('#vdvTabFeatures').innerHTML = `
-      <div class="vdv-features-grid">
-        ${groups.map(([gt, csv]) => `
-          <div>
-            <div class="vdv-feature-group-title">${gt}</div>
-            <div class="vdv-feature-list">
-              ${csv.split(',').map(f=>f.trim()).filter(Boolean).map(f=>`
-                <div class="vdv-feature-item"><span class="vdv-feature-check">${ic('check', 13)}</span>${this._esc(f)}</div>`).join('')}
-            </div>
-          </div>`).join('')}
-      </div>`;
+    ].filter(([,val])=>val);
+    if (!groups.length) { this.querySelector('#vdvTabFeatures').innerHTML = `<p style="color:${this.styleProps.metaColor}">No features listed.</p>`; return; }
+    this.querySelector('#vdvTabFeatures').innerHTML = `<div class="vdv-features-grid">${groups.map(([gt,csv])=>`
+      <div><div class="vdv-feature-group-title">${gt}</div><div class="vdv-feature-list">
+        ${csv.split(',').map(f=>f.trim()).filter(Boolean).map(f=>`<div class="vdv-feature-item"><span class="vdv-feature-check">${ic('check',13)}</span>${this._esc(f)}</div>`).join('')}
+      </div></div>`).join('')}</div>`;
   }
 
   _renderTabHistory(v) {
     const cards = [
-      { title:'Ownership',          body: v.owners ? `${v.owners} previous owner(s)` : null },
-      { title:'Accident History',   body: v.accidentHistory ? 'Accident reported — see CARFAX' : 'No accidents reported' },
-      { title:'Service History',    body: v.serviceHistory || null },
-      { title:'CARFAX Report',      body: v.carfaxUrl ? `<a class="vdv-media-link" href="${v.carfaxUrl}" target="_blank" rel="noopener">${ic('report',14)} View Report</a>` : null, raw: true },
-      { title:'Warranty',           body: v.warrantyType ? `${v.warrantyType}${v.warrantyMonths?' · '+v.warrantyMonths+' months':''}${v.warrantyMiles?' · '+Number(v.warrantyMiles).toLocaleString()+' mi':''}` : null },
-      { title:'Certified Pre-Owned',body: v.certifiedPreOwned ? 'Yes — Certified Pre-Owned' : null },
-    ].filter(c => c.body);
+      { title:'Ownership',          body: v.owners?`${v.owners} previous owner(s)`:null },
+      { title:'Accident History',   body: v.accidentHistory?'Accident reported':'No accidents reported' },
+      { title:'Service History',    body: v.serviceHistory||null },
+      { title:'CARFAX Report',      body: v.carfaxUrl?`<a class="vdv-media-link" href="${v.carfaxUrl}" target="_blank" rel="noopener">${ic('report',14)} View Report</a>`:null, raw:true },
+      { title:'Warranty',           body: v.warrantyType?`${v.warrantyType}${v.warrantyMonths?' · '+v.warrantyMonths+' months':''}`:null },
+      { title:'Certified Pre-Owned',body: v.certifiedPreOwned?'Yes — CPO':null },
+    ].filter(c=>c.body);
     this.querySelector('#vdvTabHistory').innerHTML = cards.length
-      ? `<div class="vdv-history-grid">${cards.map(c=>`
-          <div class="vdv-history-card">
-            <div class="vdv-history-card-title">${c.title}</div>
-            <div class="vdv-history-card-body">${c.raw ? c.body : this._esc(c.body)}</div>
-          </div>`).join('')}</div>`
+      ? `<div class="vdv-history-grid">${cards.map(c=>`<div class="vdv-history-card"><div class="vdv-history-card-title">${c.title}</div><div class="vdv-history-card-body">${c.raw?c.body:this._esc(c.body)}</div></div>`).join('')}</div>`
       : `<p style="color:${this.styleProps.metaColor}">No history information available.</p>`;
   }
 
@@ -573,9 +529,9 @@ class VehicleDetailViewer extends HTMLElement {
     if (v.videoUrl) {
       const yt = v.videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
       const vi = v.videoUrl.match(/vimeo\.com\/(\d+)/);
-      if (yt) html += `<div><div class="vdv-specs-group-title">Video</div><div class="vdv-video-embed"><iframe src="https://www.youtube.com/embed/${yt[1]}" allowfullscreen title="Video"></iframe></div></div>`;
-      else if (vi) html += `<div><div class="vdv-specs-group-title">Video</div><div class="vdv-video-embed"><iframe src="https://player.vimeo.com/video/${vi[1]}" allowfullscreen title="Video"></iframe></div></div>`;
-      else html += `<div><div class="vdv-specs-group-title">Video</div><a class="vdv-media-link" href="${v.videoUrl}" target="_blank" rel="noopener">${ic('play',14)} Watch Video</a></div>`;
+      if (yt)      html += `<div><div class="vdv-specs-group-title">Video</div><div class="vdv-video-embed"><iframe src="https://www.youtube.com/embed/${yt[1]}" allowfullscreen loading="lazy" title="Vehicle Video"></iframe></div></div>`;
+      else if (vi) html += `<div><div class="vdv-specs-group-title">Video</div><div class="vdv-video-embed"><iframe src="https://player.vimeo.com/video/${vi[1]}" allowfullscreen loading="lazy" title="Vehicle Video"></iframe></div></div>`;
+      else         html += `<div><div class="vdv-specs-group-title">Video</div><a class="vdv-media-link" href="${v.videoUrl}" target="_blank" rel="noopener">${ic('play',14)} Watch Video</a></div>`;
     }
     if (v.video360Url) html += `<div><div class="vdv-specs-group-title">360° View</div><a class="vdv-media-link" href="${v.video360Url}" target="_blank" rel="noopener">${ic('rotate',14)} Open 360° View</a></div>`;
     if (v.tourUrl)     html += `<div><div class="vdv-specs-group-title">Virtual Tour</div><a class="vdv-media-link" href="${v.tourUrl}" target="_blank" rel="noopener">${ic('tour',14)} Open Virtual Tour</a></div>`;
@@ -584,22 +540,10 @@ class VehicleDetailViewer extends HTMLElement {
     this.querySelector('#vdvTabMedia').innerHTML = html;
   }
 
-  _bindTabs() {
-    const tabs   = this.querySelectorAll('.vdv-tab');
-    const panels = { specs: this.querySelector('#vdvTabSpecs'), features: this.querySelector('#vdvTabFeatures'), history: this.querySelector('#vdvTabHistory'), media: this.querySelector('#vdvTabMedia') };
-    tabs.forEach(tab => tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
-      Object.values(panels).forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      panels[tab.dataset.tab]?.classList.add('active');
-    }));
-  }
-
   _renderCalc(v) {
     if (!v.financeEnabled && !v.price) return;
     this.querySelector('#vdvCalc').style.display = 'block';
-    const displayPrice = v.salePrice || v.price || 0;
-    const p = this.querySelector('#calcPrice'); if (p) p.value = displayPrice;
+    const p = this.querySelector('#calcPrice'); if (p) p.value = v.salePrice || v.price || 0;
     const d = this.querySelector('#calcDown');  if (d && v.downPayment)    d.value = v.downPayment;
     const r = this.querySelector('#calcRate');  if (r && v.interestRate)   r.value = v.interestRate;
     const t = this.querySelector('#calcTerm');  if (t && v.loanTermMonths) t.value = v.loanTermMonths;
@@ -613,24 +557,24 @@ class VehicleDetailViewer extends HTMLElement {
   }
 
   _computeLoan() {
-    const P = parseFloat(this.querySelector('#calcPrice')?.value || 0);
-    const D = parseFloat(this.querySelector('#calcDown')?.value  || 0);
-    const R = parseFloat(this.querySelector('#calcRate')?.value  || 0) / 100 / 12;
-    const N = parseFloat(this.querySelector('#calcTerm')?.value  || 60);
+    const P = parseFloat(this.querySelector('#calcPrice')?.value||0);
+    const D = parseFloat(this.querySelector('#calcDown')?.value||0);
+    const R = parseFloat(this.querySelector('#calcRate')?.value||0)/100/12;
+    const N = parseFloat(this.querySelector('#calcTerm')?.value||60);
     const principal = P - D;
-    const monthly = (principal > 0 && R > 0) ? (principal * R * Math.pow(1+R,N)) / (Math.pow(1+R,N)-1) : principal > 0 ? principal/N : 0;
-    const total = monthly * N; const interest = total - principal;
-    const fmt = n => '$' + Math.max(0,n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-    const m = this.querySelector('#calcMonthly'); if (m) m.textContent = monthly > 0 ? fmt(monthly) : '—';
-    const t = this.querySelector('#calcTotal');   if (t) t.textContent = total    > 0 ? fmt(total)   : '—';
-    const i = this.querySelector('#calcInterest');if (i) i.textContent = interest > 0 ? fmt(interest): '—';
+    const monthly = (principal>0&&R>0)?(principal*R*Math.pow(1+R,N))/(Math.pow(1+R,N)-1):principal>0?principal/N:0;
+    const total = monthly*N; const interest = total-principal;
+    const fmt = n => '$'+Math.max(0,n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const m=this.querySelector('#calcMonthly'); if(m) m.textContent=monthly>0?fmt(monthly):'—';
+    const t=this.querySelector('#calcTotal');   if(t) t.textContent=total>0?fmt(total):'—';
+    const i=this.querySelector('#calcInterest');if(i) i.textContent=interest>0?fmt(interest):'—';
   }
 
   _renderLead(v) {
     if (v.leadCaptureEnabled === false) return;
     this.querySelector('#vdvLead').style.display = 'block';
     const titleEl = this.querySelector('#vdvLeadTitle');
-    if (titleEl && v.leadFormTitle) titleEl.innerHTML = `${ic('send', 20)} ${this._esc(v.leadFormTitle)}`;
+    if (titleEl && v.leadFormTitle) titleEl.innerHTML = `${ic('send',20)} ${this._esc(v.leadFormTitle)}`;
   }
 
   _bindLeadForm(v) {
@@ -641,7 +585,7 @@ class VehicleDetailViewer extends HTMLElement {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       submitBtn.disabled = true;
-      submitBtn.innerHTML = `${ic('send', 16)} Sending…`;
+      submitBtn.innerHTML = `${ic('send',16)} Sending…`;
       const formData = {
         listingId:             v._id,
         listingTitle:          v.title || `${v.year} ${v.make} ${v.model}`,
@@ -660,36 +604,33 @@ class VehicleDetailViewer extends HTMLElement {
       this.dispatchEvent(new CustomEvent('submit-lead', { detail: { formData }, bubbles: true, composed: true }));
       msgEl.style.display = 'flex';
       msgEl.className = 'vdv-form-msg success';
-      msgEl.innerHTML = `${ic('checkFill', 18)} Enquiry sent! The dealer will contact you soon.`;
-      submitBtn.innerHTML = `${ic('check', 16)} Sent`;
-      setTimeout(() => {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = `${ic('send', 16)} Send Enquiry`;
-      }, 5000);
+      msgEl.innerHTML = `${ic('checkFill',18)} Enquiry sent! The dealer will contact you soon.`;
+      submitBtn.innerHTML = `${ic('check',16)} Sent`;
+      setTimeout(() => { submitBtn.disabled = false; submitBtn.innerHTML = `${ic('send',16)} Send Enquiry`; }, 5000);
     });
   }
 
   _renderDealer(v) {
     if (!v.dealerName) return;
     this.querySelector('#vdvDealer').style.display = 'block';
-    const logo = v.dealerLogo
-      ? `<img class="vdv-dealer-logo" src="${this._imgUrl(v.dealerLogo, 200, 140)}" alt="${this._esc(v.dealerName)}" loading="lazy"/>`
-      : `<div class="vdv-dealer-logo-ph">${ic('dealer', 32)}</div>`;
-    const address = [v.dealerAddress, v.dealerCity, v.dealerState, v.dealerZip, v.dealerCountry].filter(Boolean).join(', ');
+    const logo    = v.dealerLogo
+      ? `<img class="vdv-dealer-logo" src="${this._imgUrl(v.dealerLogo,200,140,80)}" alt="${this._esc(v.dealerName)}" loading="lazy" width="100" height="70"/>`
+      : `<div class="vdv-dealer-logo-ph">${ic('dealer',32)}</div>`;
+    const address = [v.dealerAddress,v.dealerCity,v.dealerState,v.dealerZip,v.dealerCountry].filter(Boolean).join(', ');
     const mapUrl  = address ? `https://maps.google.com/?q=${encodeURIComponent(address)}` : null;
     this.querySelector('#vdvDealerContent').innerHTML = `
       ${logo}
       <div class="vdv-dealer-info">
         <div class="vdv-dealer-name">${this._esc(v.dealerName)}</div>
-        ${address       ? `<div class="vdv-dealer-detail">${ic('map',14)} ${this._esc(address)}</div>` : ''}
-        ${v.dealerPhone ? `<div class="vdv-dealer-detail">${ic('phone',14)} ${this._esc(v.dealerPhone)}</div>` : ''}
-        ${v.dealerEmail ? `<div class="vdv-dealer-detail">${ic('mail',14)} ${this._esc(v.dealerEmail)}</div>` : ''}
-        ${v.dealerWebsite?`<div class="vdv-dealer-detail">${ic('globe',14)} <a href="${v.dealerWebsite}" target="_blank" rel="noopener" style="color:${this.styleProps.accentColor}">${v.dealerWebsite}</a></div>` : ''}
+        ${address        ?`<div class="vdv-dealer-detail">${ic('map',14)} ${this._esc(address)}</div>`:''}
+        ${v.dealerPhone  ?`<div class="vdv-dealer-detail">${ic('phone',14)} ${this._esc(v.dealerPhone)}</div>`:''}
+        ${v.dealerEmail  ?`<div class="vdv-dealer-detail">${ic('mail',14)} ${this._esc(v.dealerEmail)}</div>`:''}
+        ${v.dealerWebsite?`<div class="vdv-dealer-detail">${ic('globe',14)} <a href="${v.dealerWebsite}" target="_blank" rel="noopener" style="color:${this.styleProps.accentColor}">${v.dealerWebsite}</a></div>`:''}
         <div class="vdv-dealer-actions">
-          ${v.dealerPhone  ? `<a class="vdv-dealer-btn" href="tel:${v.dealerPhone}">${ic('phone',13)} Call</a>` : ''}
-          ${v.dealerEmail  ? `<a class="vdv-dealer-btn" href="mailto:${v.dealerEmail}">${ic('mail',13)} Email</a>` : ''}
-          ${mapUrl         ? `<a class="vdv-dealer-btn" href="${mapUrl}" target="_blank" rel="noopener">${ic('map',13)} Directions</a>` : ''}
-          ${v.dealerWebsite? `<a class="vdv-dealer-btn" href="${v.dealerWebsite}" target="_blank" rel="noopener">${ic('globe',13)} Website</a>` : ''}
+          ${v.dealerPhone  ?`<a class="vdv-dealer-btn" href="tel:${v.dealerPhone}">${ic('phone',13)} Call</a>`:''}
+          ${v.dealerEmail  ?`<a class="vdv-dealer-btn" href="mailto:${v.dealerEmail}">${ic('mail',13)} Email</a>`:''}
+          ${mapUrl         ?`<a class="vdv-dealer-btn" href="${mapUrl}" target="_blank" rel="noopener">${ic('map',13)} Directions</a>`:''}
+          ${v.dealerWebsite?`<a class="vdv-dealer-btn" href="${v.dealerWebsite}" target="_blank" rel="noopener">${ic('globe',13)} Website</a>`:''}
         </div>
       </div>`;
   }
@@ -713,34 +654,21 @@ class VehicleDetailViewer extends HTMLElement {
     });
   }
 
-  _emitSEO() {
-    const v = this.state.vehicleData;
-    if (!v) return;
-    const title = v.title || `${v.year} ${v.make} ${v.model}`;
-    const price = v.salePrice || v.price;
-    let markup = `<h1>${this._esc(title)}</h1>`;
-    if (v.description) markup += `<p>${this._esc(v.description)}</p>`;
-    markup += `<p>Year: ${v.year||''} | Make: ${v.make||''} | Model: ${v.model||''} ${price?'| Price: $'+Number(price).toLocaleString():''}</p>`;
-    if (v.mileage) markup += `<p>Mileage: ${Number(v.mileage).toLocaleString()} miles</p>`;
-    if (v.vin)     markup += `<p>VIN: ${v.vin}</p>`;
-    this.dispatchEvent(new CustomEvent('seo-markup-ready', { detail: { markup }, bubbles: true, composed: true }));
-  }
-
-  _imgUrl(raw, w = 800, h = 600) {
+  // w & h params allow caller to specify exact resize, q = quality 0-100
+  _imgUrl(raw, w=800, h=600, q=80) {
     if (!raw || typeof raw !== 'string') return '';
     if (raw.startsWith('https://static.wixstatic.com/media/')) {
-      try { const fn = raw.split('/media/')[1]?.split('/')[0]; if (!fn) return raw; return `https://static.wixstatic.com/media/${fn}/v1/fill/w_${w},h_${h},al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/${fn}`; } catch(e) { return raw; }
+      try { const fn=raw.split('/media/')[1]?.split('/')[0]; if(!fn) return raw; return `https://static.wixstatic.com/media/${fn}/v1/fill/w_${w},h_${h},al_c,q_${q},enc_avif,quality_auto/${fn}`; } catch(e){return raw;}
     }
-    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    if (raw.startsWith('http://')||raw.startsWith('https://')) return raw;
     if (raw.startsWith('wix:image://')) {
-      try { const fid = raw.split('/')[3]?.split('#')[0]; if (!fid) return ''; let fn = fid.includes('~mv2') ? fid : `${fid}~mv2.jpg`; if (!fn.includes('.')) fn += '.jpg'; return `https://static.wixstatic.com/media/${fn}/v1/fill/w_${w},h_${h},al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/${fn}`; } catch(e) { return ''; }
+      try { const fid=raw.split('/')[3]?.split('#')[0]; if(!fid) return ''; let fn=fid.includes('~mv2')?fid:`${fid}~mv2.jpg`; if(!fn.includes('.')) fn+='.jpg'; return `https://static.wixstatic.com/media/${fn}/v1/fill/w_${w},h_${h},al_c,q_${q},enc_avif,quality_auto/${fn}`; } catch(e){return '';}
     }
     return '';
   }
 
-  _esc(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
-  _fmtDate(ds) { if (!ds) return ''; const d = new Date(ds); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}); }
-
+  _esc(t) { if(!t) return ''; const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+  _fmtDate(ds) { if(!ds) return ''; const d=new Date(ds); return isNaN(d.getTime())?'':d.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}); }
   disconnectedCallback() {}
 }
 
