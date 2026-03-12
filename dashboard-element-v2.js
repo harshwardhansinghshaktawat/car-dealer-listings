@@ -260,6 +260,7 @@ vehicle-listing-editor .vle-host {
     border: 1px solid var(--border);
 }
 
+/* TOP BAR */
 vehicle-listing-editor .vle-topbar {
     display: flex;
     align-items: center;
@@ -298,6 +299,7 @@ vehicle-listing-editor .vle-topbar-stat {
 }
 vehicle-listing-editor .vle-topbar-stat strong { color: #fff; }
 
+/* BUTTONS */
 vehicle-listing-editor .vle-btn {
     display: inline-flex;
     align-items: center;
@@ -329,8 +331,8 @@ vehicle-listing-editor .vle-btn-green   { background: #edfbf2; color: var(--gree
 vehicle-listing-editor .vle-btn-green:hover   { background: #d4f5e4; }
 vehicle-listing-editor .vle-btn-sm { padding: 5px 10px; font-size: 12px; }
 vehicle-listing-editor .vle-btn-xs { padding: 4px 8px; font-size: 11px; }
-vehicle-listing-editor .vle-btn-icon { padding: 7px; border-radius: var(--r); }
 
+/* LIST VIEW */
 vehicle-listing-editor .vle-list-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
 vehicle-listing-editor .vle-list-view.hidden { display: none; }
 
@@ -1248,15 +1250,743 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
 </div>`;
     }
 
-    _basicPanel() { return `...`;} // (kept unchanged - full original code omitted for brevity but identical in final paste)
-    _specsPanel() { return `...`;}
-    _pricingPanel() { return `...`;}
-    _mediaPanel() { return `...`;}
-    _featuresPanel() { return `...`;}
-    _checklistHTML(group, items) { return items.map(item => `<label class="vle-check-item"><input type="checkbox" data-group="${group}" data-feature="${item}"><span>${item}</span></label>`).join(''); }
-    _historyPanel() { return `...`;}
-    _dealerPanel() { return `...`;}
-    _leadsPanel() { return `
+    _basicPanel() {
+        return `
+<div class="vle-alert vle-alert-info">${this._icon('alert')}<div><strong>Getting started:</strong> Fill in the vehicle type, listing type, and core details below. Fields marked with <b>?</b> have helpful tooltips. Required fields for publishing: Title, Make, Model, Year, Price, and Status.</div></div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('car')} Vehicle Type</div>
+    <div class="vle-section-body">
+        <div class="vle-type-grid" id="vehicleTypeGrid">
+            <button class="vle-type-btn active" data-vtype="car">${this._icon('car')} Cars & Trucks</button>
+            <button class="vle-type-btn" data-vtype="motorcycle">${this._icon('motorcycle')} Motorcycles</button>
+            <button class="vle-type-btn" data-vtype="rv">${this._icon('rv')} RVs & Campers</button>
+            <button class="vle-type-btn" data-vtype="boat">${this._icon('boat')} Boats</button>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 Selecting the vehicle type adjusts the specification fields shown in the Specs tab.</div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('star')} Listing Type</div>
+    <div class="vle-section-body">
+        <div class="vle-ltype-grid" id="listingTypeGrid">
+            <button class="vle-ltype-btn" data-ltype="new">For Sale (New)</button>
+            <button class="vle-ltype-btn active" data-ltype="used">For Sale (Used)</button>
+            <button class="vle-ltype-btn" data-ltype="rent">Rent / Lease</button>
+            <button class="vle-ltype-btn" data-ltype="auction">Auction</button>
+        </div>
+        <div class="vle-field" style="margin-top:10px;">
+            <label>Listing Status <em class="vle-tip" data-tip="Draft = hidden from visitors. Active = live on your site. Sold/Rented/Expired = archived.">?</em></label>
+            <select class="vle-sel" data-d="status" id="statusSel">
+                <option value="draft">Draft (Hidden)</option>
+                <option value="active">Active (Live)</option>
+                <option value="sold">Sold</option>
+                <option value="rented">Rented</option>
+                <option value="expired">Expired</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('edit')} Core Details</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field vle-full">
+                <label>Listing Title <em class="vle-tip" data-tip="Auto-filled from Year + Make + Model + Trim. You can also type a custom title.">?</em></label>
+                <input class="vle-inp" data-d="title" id="titleInp" placeholder="e.g. 2022 Ford Mustang GT Premium">
+            </div>
+            <div class="vle-field vle-full">
+                <label>URL Slug <em class="vle-tip" data-tip="Auto-generated from title. Used in the page URL. Lowercase, hyphens only.">?</em></label>
+                <input class="vle-inp" data-d="slug" id="slugInp" placeholder="e.g. 2022-ford-mustang-gt" readonly>
+            </div>
+            <div class="vle-field">
+                <label>Make / Brand <em class="vle-tip" data-tip="Manufacturer name, e.g. Ford, Toyota, Harley-Davidson.">?</em></label>
+                <input class="vle-inp" data-d="make" id="makeInp" list="makesList" placeholder="e.g. Toyota">
+                <datalist id="makesList"></datalist>
+            </div>
+            <div class="vle-field">
+                <label>Model <em class="vle-tip" data-tip="Model name, e.g. Camry, F-150, Sportster.">?</em></label>
+                <input class="vle-inp" data-d="model" id="modelInp" placeholder="e.g. Camry">
+            </div>
+            <div class="vle-field">
+                <label>Trim / Variant <em class="vle-tip" data-tip="Trim level or edition, e.g. XLE, GT, Limited.">?</em></label>
+                <input class="vle-inp" data-d="trim" placeholder="e.g. XLE Sport">
+            </div>
+            <div class="vle-field">
+                <label>Year <em class="vle-tip" data-tip="Model year of the vehicle.">?</em></label>
+                <input class="vle-inp" data-d="year" type="number" placeholder="2023" min="1900" max="2099">
+            </div>
+            <div class="vle-field">
+                <label>Exterior Color <em class="vle-tip" data-tip="Main exterior paint color.">?</em></label>
+                <input class="vle-inp" data-d="exteriorColor" placeholder="e.g. Midnight Black">
+            </div>
+            <div class="vle-field">
+                <label>Interior Color <em class="vle-tip" data-tip="Interior upholstery/trim color.">?</em></label>
+                <input class="vle-inp" data-d="interiorColor" placeholder="e.g. Beige Leather">
+            </div>
+            <div class="vle-field">
+                <label>Body Style <em class="vle-tip" data-tip="e.g. Sedan, SUV, Pickup Truck, Convertible, Coupe.">?</em></label>
+                <input class="vle-inp" data-d="bodyStyle" placeholder="e.g. SUV, Sedan, Pickup">
+            </div>
+            <div class="vle-field">
+                <label>Condition</label>
+                <select class="vle-sel" data-d="condition">
+                    <option value="new">New</option>
+                    <option value="like_new">Like New</option>
+                    <option value="excellent">Excellent</option>
+                    <option value="good">Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="poor">Poor / For Parts</option>
+                </select>
+            </div>
+        </div>
+        <div class="vle-field" style="margin-top:14px;">
+            <label>Description <em class="vle-tip" data-tip="Detailed listing description. Be specific about condition, history, and features. Well-written descriptions convert more buyers.">?</em></label>
+            <textarea class="vle-txt" data-d="description" placeholder="Write a compelling description highlighting key features, condition, and why this vehicle stands out. Include unique selling points, any recent maintenance, upgrades, or notable history." rows="5"></textarea>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('star')} Listing Options</div>
+    <div class="vle-section-body">
+        <div class="vle-tog-row">
+            <div class="vle-tog-info">
+                <div class="vle-tog-label">Featured Listing</div>
+                <div class="vle-tog-desc">Highlighted in search results and homepage. Use for premium or high-priority vehicles.</div>
+            </div>
+            <label class="vle-tog"><input type="checkbox" data-d="featured"><span class="vle-tog-slider"></span></label>
+        </div>
+        <div class="vle-tog-row">
+            <div class="vle-tog-info">
+                <div class="vle-tog-label">Enable Compare</div>
+                <div class="vle-tog-desc">Allow visitors to add this listing to the comparison tool.</div>
+            </div>
+            <label class="vle-tog"><input type="checkbox" data-d="compareEnabled" checked><span class="vle-tog-slider"></span></label>
+        </div>
+        <div class="vle-tog-row">
+            <div class="vle-tog-info">
+                <div class="vle-tog-label">Certified Pre-Owned</div>
+                <div class="vle-tog-desc">Mark as manufacturer or dealer certified. Adds a CPO badge to the listing.</div>
+            </div>
+            <label class="vle-tog"><input type="checkbox" data-d="certifiedPreOwned"><span class="vle-tog-slider"></span></label>
+        </div>
+    </div>
+</div>`;
+    }
+
+    _specsPanel() {
+        return `
+<div class="vle-alert vle-alert-info">${this._icon('alert')}<div>Specifications are used in the vehicle detail page and comparison tool. Fill in as many as possible — more specs = more buyer confidence.</div></div>
+
+<div class="vle-section" id="specIdentitySection">
+    <div class="vle-section-head">${this._icon('car')} Identity Numbers</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field">
+                <label>VIN <em class="vle-tip" data-tip="17-character Vehicle Identification Number. Unique to every vehicle. Buyers use this for history checks.">?</em></label>
+                <input class="vle-inp" data-d="vin" placeholder="e.g. 1HGBH41JXMN109186" maxlength="17">
+            </div>
+            <div class="vle-field">
+                <label>Stock Number <em class="vle-tip" data-tip="Your internal inventory number for this vehicle.">?</em></label>
+                <input class="vle-inp" data-d="stockNumber" placeholder="e.g. STK-2024-001">
+            </div>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 VIN enables Carfax/AutoCheck lookups and builds buyer trust. Always include it for used vehicles.</div>
+</div>
+
+<div class="vle-section" id="specEngineSection">
+    <div class="vle-section-head">${this._icon('gear')} Engine & Performance</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-3">
+            <div class="vle-field">
+                <label>Engine <em class="vle-tip" data-tip="e.g. 5.0L V8, 2.5L 4-Cylinder, Electric Motor, 1200cc Twin">?</em></label>
+                <input class="vle-inp" data-d="engine" placeholder="e.g. 5.0L V8">
+            </div>
+            <div class="vle-field">
+                <label>Displacement <em class="vle-tip" data-tip="Engine displacement, e.g. 2000cc, 5.0L, 1200cc">?</em></label>
+                <input class="vle-inp" data-d="engineDisplacement" placeholder="e.g. 5.0L">
+            </div>
+            <div class="vle-field">
+                <label>Cylinders <em class="vle-tip" data-tip="Number of cylinders: 4, 6, 8, or type Electric/Rotary">?</em></label>
+                <input class="vle-inp" data-d="cylinders" placeholder="e.g. 8">
+            </div>
+            <div class="vle-field">
+                <label>Horsepower (hp) <em class="vle-tip" data-tip="Peak horsepower output">?</em></label>
+                <input class="vle-inp" data-d="horsepower" type="number" placeholder="e.g. 450">
+            </div>
+            <div class="vle-field">
+                <label>Torque (lb-ft) <em class="vle-tip" data-tip="Peak torque in pound-feet">?</em></label>
+                <input class="vle-inp" data-d="torque" type="number" placeholder="e.g. 420">
+            </div>
+            <div class="vle-field">
+                <label>Fuel Type <em class="vle-tip" data-tip="Gasoline, Diesel, Electric, Hybrid, Hydrogen, CNG">?</em></label>
+                <select class="vle-sel" data-d="fuelType">
+                    <option value="">— Select —</option>
+                    <option value="gasoline">Gasoline</option>
+                    <option value="diesel">Diesel</option>
+                    <option value="electric">Electric (EV)</option>
+                    <option value="hybrid">Hybrid</option>
+                    <option value="phev">Plug-in Hybrid (PHEV)</option>
+                    <option value="hydrogen">Hydrogen</option>
+                    <option value="cng">CNG / LPG</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="vle-field">
+                <label>Transmission <em class="vle-tip" data-tip="Transmission type">?</em></label>
+                <select class="vle-sel" data-d="transmission">
+                    <option value="">— Select —</option>
+                    <option value="automatic">Automatic</option>
+                    <option value="manual">Manual</option>
+                    <option value="cvt">CVT</option>
+                    <option value="dct">Dual-Clutch (DCT)</option>
+                    <option value="semi">Semi-Automatic</option>
+                    <option value="single">Single-Speed (EV)</option>
+                </select>
+            </div>
+            <div class="vle-field">
+                <label>Drivetrain <em class="vle-tip" data-tip="FWD = Front Wheel Drive, RWD = Rear, AWD = All, 4WD = Four-wheel">?</em></label>
+                <select class="vle-sel" data-d="drivetrain">
+                    <option value="">— Select —</option>
+                    <option value="fwd">FWD</option>
+                    <option value="rwd">RWD</option>
+                    <option value="awd">AWD</option>
+                    <option value="4wd">4WD / 4×4</option>
+                </select>
+            </div>
+            <div class="vle-field">
+                <label>EV Range (miles) <em class="vle-tip" data-tip="Electric range per charge. Leave blank for non-EVs.">?</em></label>
+                <input class="vle-inp" data-d="range" type="number" placeholder="e.g. 350">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section" id="specFuelSection">
+    <div class="vle-section-head">${this._icon('star')} Fuel Economy</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-3">
+            <div class="vle-field">
+                <label>City MPG <em class="vle-tip" data-tip="Miles per gallon in city driving (EPA estimate)">?</em></label>
+                <input class="vle-inp" data-d="mpgCity" type="number" placeholder="e.g. 18">
+            </div>
+            <div class="vle-field">
+                <label>Highway MPG <em class="vle-tip" data-tip="Miles per gallon on highway (EPA estimate)">?</em></label>
+                <input class="vle-inp" data-d="mpgHighway" type="number" placeholder="e.g. 26">
+            </div>
+            <div class="vle-field">
+                <label>Mileage (odometer) <em class="vle-tip" data-tip="Current odometer reading. For new vehicles, enter 0 or leave blank.">?</em></label>
+                <input class="vle-inp" data-d="mileage" type="number" placeholder="e.g. 45000">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section" id="specDimensionsSection">
+    <div class="vle-section-head">${this._icon('compare')} Dimensions & Capacity</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-4">
+            <div class="vle-field">
+                <label>Doors <em class="vle-tip" data-tip="Number of doors including trunk/tailgate">?</em></label>
+                <input class="vle-inp" data-d="doors" type="number" placeholder="e.g. 4">
+            </div>
+            <div class="vle-field">
+                <label>Seating <em class="vle-tip" data-tip="Maximum seating capacity">?</em></label>
+                <input class="vle-inp" data-d="seatingCapacity" type="number" placeholder="e.g. 5">
+            </div>
+            <div class="vle-field">
+                <label>Length (ft) <em class="vle-tip" data-tip="Overall vehicle length in feet">?</em></label>
+                <input class="vle-inp" data-d="length" type="number" step="0.1" placeholder="e.g. 16.5">
+            </div>
+            <div class="vle-field">
+                <label>Width (ft) <em class="vle-tip" data-tip="Overall vehicle width in feet">?</em></label>
+                <input class="vle-inp" data-d="width" type="number" step="0.1" placeholder="e.g. 6.5">
+            </div>
+            <div class="vle-field">
+                <label>Height (ft) <em class="vle-tip" data-tip="Overall vehicle height in feet">?</em></label>
+                <input class="vle-inp" data-d="height" type="number" step="0.1" placeholder="e.g. 5.2">
+            </div>
+            <div class="vle-field">
+                <label>Weight (lbs) <em class="vle-tip" data-tip="Curb weight in pounds">?</em></label>
+                <input class="vle-inp" data-d="weight" type="number" placeholder="e.g. 4200">
+            </div>
+            <div class="vle-field">
+                <label>Towing Capacity (lbs) <em class="vle-tip" data-tip="Maximum towing capacity in pounds">?</em></label>
+                <input class="vle-inp" data-d="towingCapacity" type="number" placeholder="e.g. 8000">
+            </div>
+            <div class="vle-field">
+                <label>Payload (lbs) <em class="vle-tip" data-tip="Maximum payload in pounds">?</em></label>
+                <input class="vle-inp" data-d="payload" type="number" placeholder="e.g. 1800">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section" id="specBoatSection" style="display:none">
+    <div class="vle-section-head">${this._icon('boat')} Boat-Specific Details</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-3">
+            <div class="vle-field">
+                <label>Boat Type <em class="vle-tip" data-tip="e.g. Pontoon, Ski Boat, Fishing, Sailboat, Yacht">?</em></label>
+                <input class="vle-inp" data-d="boatType" placeholder="e.g. Pontoon">
+            </div>
+            <div class="vle-field">
+                <label>Hull Material <em class="vle-tip" data-tip="Fiberglass, Aluminum, Steel, Wood, Composite">?</em></label>
+                <input class="vle-inp" data-d="hullMaterial" placeholder="e.g. Fiberglass">
+            </div>
+            <div class="vle-field">
+                <label>Engine Type (Marine) <em class="vle-tip" data-tip="Inboard, Outboard, Stern Drive, Jet Drive">?</em></label>
+                <input class="vle-inp" data-d="engineType" placeholder="e.g. Outboard">
+            </div>
+            <div class="vle-field">
+                <label>Engine Hours <em class="vle-tip" data-tip="Total hours on the engine (marine odometer)">?</em></label>
+                <input class="vle-inp" data-d="engineHours" type="number" placeholder="e.g. 250">
+            </div>
+        </div>
+    </div>
+</div>`;
+    }
+
+    _pricingPanel() {
+        return `
+<div class="vle-alert vle-alert-info">${this._icon('alert')}<div>Set your pricing carefully. <b>Sale Price</b> is the actual asking price shown to visitors. <b>Original Price / MSRP</b> shows crossed-out as a reference. Rental and Auction fields appear based on listing type.</div></div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('dollar')} Sale Pricing</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field">
+                <label>Currency</label>
+                <select class="vle-sel" data-d="currency">
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="CAD">CAD (C$)</option>
+                    <option value="AUD">AUD (A$)</option>
+                    <option value="INR">INR (₹)</option>
+                    <option value="AED">AED (د.إ)</option>
+                </select>
+            </div>
+            <div class="vle-field">
+                <label>Asking Price <em class="vle-tip" data-tip="The main price displayed to buyers. This is what you're asking for the vehicle.">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="price" id="priceInp" placeholder="e.g. 28500" step="100"></div>
+            </div>
+            <div class="vle-field">
+                <label>Sale / Discounted Price <em class="vle-tip" data-tip="If you're running a promotion, enter the reduced price here. Leave blank if no discount.">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="salePrice" placeholder="e.g. 26900" step="100"></div>
+            </div>
+            <div class="vle-field">
+                <label>MSRP / Original Price <em class="vle-tip" data-tip="Manufacturer's Suggested Retail Price or original sticker price. Shown crossed-out to highlight your discount.">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="msrp" placeholder="e.g. 32000" step="100"></div>
+            </div>
+        </div>
+        <div style="margin-top:14px;">
+            <div class="vle-tog-row">
+                <div class="vle-tog-info">
+                    <div class="vle-tog-label">Price Negotiable</div>
+                    <div class="vle-tog-desc">Shows "OBO" (Or Best Offer) badge on listing. Encourages inquiries.</div>
+                </div>
+                <label class="vle-tog"><input type="checkbox" data-d="priceNegotiable"><span class="vle-tog-slider"></span></label>
+            </div>
+            <div class="vle-tog-row">
+                <div class="vle-tog-info">
+                    <div class="vle-tog-label">Show Price on Site</div>
+                    <div class="vle-tog-desc">Uncheck to show "Call for Price" instead of the actual amount.</div>
+                </div>
+                <label class="vle-tog"><input type="checkbox" data-d="showPriceOnSite" checked><span class="vle-tog-slider"></span></label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section" id="rentalPricingSection" style="display:none">
+    <div class="vle-section-head">${this._icon('history')} Rental / Lease Rates</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-3">
+            <div class="vle-field">
+                <label>Per Day <em class="vle-tip" data-tip="Daily rental rate">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="rentalPricePerDay" placeholder="e.g. 120"></div>
+            </div>
+            <div class="vle-field">
+                <label>Per Week <em class="vle-tip" data-tip="Weekly rental rate (usually 10–15% discount vs daily)">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="rentalPricePerWeek" placeholder="e.g. 700"></div>
+            </div>
+            <div class="vle-field">
+                <label>Per Month <em class="vle-tip" data-tip="Monthly lease rate">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="rentalPricePerMonth" placeholder="e.g. 1800"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section" id="auctionPricingSection" style="display:none">
+    <div class="vle-section-head">${this._icon('star')} Auction Details</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-3">
+            <div class="vle-field">
+                <label>Starting Bid <em class="vle-tip" data-tip="The minimum opening bid amount">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="auctionStartPrice" placeholder="e.g. 5000"></div>
+            </div>
+            <div class="vle-field">
+                <label>Reserve Price <em class="vle-tip" data-tip="Minimum price you'll accept. The auction only closes if bidding reaches this. Leave blank for no reserve.">?</em></label>
+                <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="auctionReservePrice" placeholder="e.g. 15000"></div>
+            </div>
+            <div class="vle-field">
+                <label>Auction End Date <em class="vle-tip" data-tip="When the auction closes. After this date, status auto-updates to Expired.">?</em></label>
+                <input class="vle-inp" type="datetime-local" data-d="auctionEndDate">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('dollar')} Finance Calculator <em class="vle-tip" data-tip="These fields power the on-site finance estimator tool visible to buyers. Fill them in to show estimated monthly payments.">?</em></div>
+    <div class="vle-section-body">
+        <div class="vle-tog-row">
+            <div class="vle-tog-info">
+                <div class="vle-tog-label">Enable Finance Calculator</div>
+                <div class="vle-tog-desc">Show a payment estimator widget on the listing page. Helps buyers plan financing.</div>
+            </div>
+            <label class="vle-tog"><input type="checkbox" data-d="financeEnabled" id="financeToggle"><span class="vle-tog-slider"></span></label>
+        </div>
+        <div id="financeFields" style="margin-top:14px;">
+            <div class="vle-grid-3">
+                <div class="vle-field">
+                    <label>Down Payment ($) <em class="vle-tip" data-tip="Default down payment to pre-fill in the calculator. Buyers can adjust this.">?</em></label>
+                    <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">$</span><input type="number" data-d="downPayment" id="downPaymentInp" placeholder="e.g. 3000" step="500"></div>
+                </div>
+                <div class="vle-field">
+                    <label>Loan Term (months) <em class="vle-tip" data-tip="Default loan length. 60 months (5 years) is most common.">?</em></label>
+                    <select class="vle-sel" data-d="loanTermMonths" id="loanTermSel">
+                        <option value="24">24 months</option>
+                        <option value="36">36 months</option>
+                        <option value="48">48 months</option>
+                        <option value="60" selected>60 months</option>
+                        <option value="72">72 months</option>
+                        <option value="84">84 months</option>
+                    </select>
+                </div>
+                <div class="vle-field">
+                    <label>Interest Rate (APR %) <em class="vle-tip" data-tip="Annual interest rate percentage. Example: 5.9 for 5.9% APR. Contact your lender for current rates.">?</em></label>
+                    <div class="vle-inp-prefix"><span class="vle-inp-prefix-label">%</span><input type="number" data-d="interestRate" id="interestRateInp" placeholder="e.g. 5.9" step="0.1" max="99"></div>
+                </div>
+            </div>
+            <div id="calcResult" class="vle-calc-result" style="display:none">
+                <div class="vle-calc-amount" id="calcMonthly">$—</div>
+                <div class="vle-calc-label">Estimated Monthly Payment</div>
+                <div class="vle-calc-breakdown">
+                    <div class="vle-calc-item"><strong id="calcTotal">—</strong><span>Total Cost</span></div>
+                    <div class="vle-calc-item"><strong id="calcInterestTotal">—</strong><span>Total Interest</span></div>
+                    <div class="vle-calc-item"><strong id="calcLoanAmt">—</strong><span>Loan Amount</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 The finance calculator only shows estimated payments. Always advise buyers to contact a lender for actual financing.</div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('history')} Listing Dates</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-3">
+            <div class="vle-field">
+                <label>Listed Date <em class="vle-tip" data-tip="When this vehicle was first listed for sale">?</em></label>
+                <input class="vle-inp" type="date" data-d="listedDate">
+            </div>
+            <div class="vle-field">
+                <label>Expiry Date <em class="vle-tip" data-tip="Listing auto-expires after this date. Useful for time-limited offers.">?</em></label>
+                <input class="vle-inp" type="date" data-d="expiryDate">
+            </div>
+            <div class="vle-field">
+                <label>Sold / Rented Date <em class="vle-tip" data-tip="When the vehicle was sold or rented. Updates automatically when you set status to Sold.">?</em></label>
+                <input class="vle-inp" type="date" data-d="soldDate">
+            </div>
+        </div>
+    </div>
+</div>`;
+    }
+
+    _mediaPanel() {
+        return `
+<div class="vle-alert vle-alert-info">${this._icon('image')}<div><b>High-quality photos dramatically increase inquiries.</b> Upload as many images as you like. Click "Set as Primary" to choose the main listing photo shown in search results. Drag to reorder images. Each image is automatically optimized to WebP.</div></div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('image')} Photo Gallery</div>
+    <div class="vle-section-body">
+        <div class="vle-upload-zone" id="galleryUploadZone">
+            <input type="file" id="galleryFileInput" accept="image/*" multiple>
+            ${this._icon('upload')}
+            <p><strong>Click to upload photos</strong> or drag & drop here</p>
+            <small>Supports JPG, PNG, WebP · Automatically converted to WebP · Unlimited photos</small>
+        </div>
+        <div class="vle-inline-progress" id="galleryProgress">
+            <span id="galleryProgressLabel">Uploading...</span>
+            <div class="vle-inline-progress-track"><div class="vle-inline-progress-fill" id="galleryProgressFill"></div></div>
+        </div>
+        <div class="vle-gallery-grid" id="galleryGrid"></div>
+    </div>
+    <div class="vle-section-tip">💡 Best practices: exterior shots (front, rear, sides), interior (dashboard, seats, cargo), engine bay, any damage or unique features. Minimum 5 photos recommended.</div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('video')} Video & Virtual Tour</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field">
+                <label>YouTube / Vimeo Video URL <em class="vle-tip" data-tip="Paste a YouTube or Vimeo video URL. A video walkthrough can dramatically increase buyer confidence.">?</em></label>
+                <input class="vle-inp" data-d="videoUrl" placeholder="https://youtube.com/watch?v=...">
+            </div>
+            <div class="vle-field">
+                <label>360° / Matterport Tour URL <em class="vle-tip" data-tip="URL to a 360° photo or Matterport virtual tour. Embedded as an iframe on the listing page.">?</em></label>
+                <input class="vle-inp" data-d="video360Url" placeholder="https://my.matterport.com/show/...">
+            </div>
+            <div class="vle-field vle-full">
+                <label>External Tour / Preview Link <em class="vle-tip" data-tip="Any other external tour, VR experience, or preview link. Shows as a 'Take Tour' button.">?</em></label>
+                <input class="vle-inp" data-d="tourUrl" placeholder="https://example.com/virtual-tour">
+            </div>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 Video tours get 3–4× more engagement. Even a simple smartphone walkthrough video works great.</div>
+</div>`;
+    }
+
+    _featuresPanel() {
+        return `
+<div class="vle-alert vle-alert-info">${this._icon('check')}<div>Check all features that apply. Selected features appear as badges on the listing page and are used in the comparison tool. You can also type custom features at the bottom.</div></div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('star')} Safety Features</div>
+    <div class="vle-section-body">
+        <div class="vle-checklist" id="safetyChecklist">
+            ${this._checklistHTML('safety', ['Airbags (Front)','Airbags (Side)','Airbags (Curtain)','ABS Brakes','Electronic Stability Control','Traction Control','Lane Departure Warning','Lane Keep Assist','Blind Spot Monitoring','Rear Cross-Traffic Alert','Forward Collision Warning','Automatic Emergency Braking','Adaptive Cruise Control','Parking Sensors (Front)','Parking Sensors (Rear)','Backup Camera','360° Camera','Tire Pressure Monitor','Hill Start Assist','Roll Stability Control'])}
+        </div>
+        <div class="vle-field" style="margin-top:14px;">
+            <label>Additional Safety Features <em class="vle-tip" data-tip="Type any safety features not listed above, separated by commas.">?</em></label>
+            <input class="vle-inp" data-d="safetyFeatures" placeholder="e.g. Night Vision, Pedestrian Detection">
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('gear')} Technology & Connectivity</div>
+    <div class="vle-section-body">
+        <div class="vle-checklist" id="techChecklist">
+            ${this._checklistHTML('tech', ['Apple CarPlay','Android Auto','Wireless CarPlay/Android Auto','Navigation System','Bluetooth','Wi-Fi Hotspot','USB-A Ports','USB-C Ports','Wireless Charging','Premium Audio System','Satellite Radio','Heads-Up Display','Digital Instrument Cluster','Touchscreen Display','Voice Control','Remote Start','Keyless Entry','Push-Button Start','OTA Software Updates','Dashcam'])}
+        </div>
+        <div class="vle-field" style="margin-top:14px;">
+            <label>Additional Tech Features</label>
+            <input class="vle-inp" data-d="techFeatures" placeholder="e.g. Custom Stereo System, Aftermarket Dash Cam">
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('car')} Exterior Features</div>
+    <div class="vle-section-body">
+        <div class="vle-checklist" id="exteriorChecklist">
+            ${this._checklistHTML('exterior', ['Alloy Wheels','Chrome Wheels','Running Boards','Roof Rack','Sunroof / Moonroof','Panoramic Sunroof','Convertible Top','Retractable Hard Top','Power Mirrors','Heated Mirrors','Fold-Flat Mirrors','LED Headlights','Adaptive Headlights','Fog Lights','Trailer Hitch','Bed Liner','Tonneau Cover','Spoiler','Body Kit','Tinted Windows'])}
+        </div>
+        <div class="vle-field" style="margin-top:14px;">
+            <label>Additional Exterior Features</label>
+            <input class="vle-inp" data-d="exteriorFeatures" placeholder="e.g. Custom Wrap, Lift Kit">
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('star')} Interior & Comfort</div>
+    <div class="vle-section-body">
+        <div class="vle-checklist" id="interiorChecklist">
+            ${this._checklistHTML('interior', ['Leather Seats','Heated Front Seats','Heated Rear Seats','Ventilated / Cooled Seats','Memory Seats','Power Driver Seat','Power Passenger Seat','Massage Seats','Third Row Seating','Folding Rear Seats','Heated Steering Wheel','Power Steering','Tilt Steering','Telescoping Steering','Ambient Lighting','Dual-Zone Climate Control','Tri-Zone Climate Control','Rear AC Vents','Power Windows','Power Locks'])}
+        </div>
+        <div class="vle-field" style="margin-top:14px;">
+            <label>Additional Interior Features</label>
+            <input class="vle-inp" data-d="interiorFeatures" placeholder="e.g. Custom Upholstery, Air Suspension">
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('star')} Packages & Options</div>
+    <div class="vle-section-body">
+        <div class="vle-field">
+            <label>Option Packages <em class="vle-tip" data-tip="Named option packages included, e.g. 'Sport Package', 'Technology Package', 'Towing Package'. Separate with commas.">?</em></label>
+            <input class="vle-inp" data-d="packages" placeholder="e.g. Sport Package, Technology Package, Cold Weather Package">
+        </div>
+        <div class="vle-field" style="margin-top:14px;">
+            <label>All Features (Summary) <em class="vle-tip" data-tip="A comma-separated master list of all features. Used for search indexing and the features badge grid.">?</em></label>
+            <textarea class="vle-txt" data-d="features" placeholder="Leather Seats, Sunroof, Navigation, Apple CarPlay, Heated Seats, Backup Camera…" rows="3"></textarea>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 The "All Features" field is automatically compiled from your selections. You can add extras here too.</div>
+</div>`;
+    }
+
+    _checklistHTML(group, items) {
+        return items.map(item => `
+            <label class="vle-check-item">
+                <input type="checkbox" data-group="${group}" data-feature="${item}">
+                <span>${item}</span>
+            </label>`).join('');
+    }
+
+    _historyPanel() {
+        return `
+<div class="vle-alert vle-alert-warning">${this._icon('alert')}<div><b>Vehicle history builds buyer trust.</b> Be honest and transparent — accurate history information protects you legally and leads to smoother, faster sales.</div></div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('history')} Ownership & History</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field">
+                <label>Number of Previous Owners <em class="vle-tip" data-tip="How many previous registered owners. '1' means this is only the second owner.">?</em></label>
+                <select class="vle-sel" data-d="owners">
+                    <option value="">— Select —</option>
+                    <option value="0">0 (New / Never Titled)</option>
+                    <option value="1">1 Previous Owner</option>
+                    <option value="2">2 Previous Owners</option>
+                    <option value="3">3 Previous Owners</option>
+                    <option value="4+">4 or More Owners</option>
+                </select>
+            </div>
+            <div class="vle-field">
+                <label>Carfax / AutoCheck Report URL <em class="vle-tip" data-tip="Link to the vehicle history report. Greatly increases buyer trust and conversion.">?</em></label>
+                <input class="vle-inp" data-d="carfaxUrl" placeholder="https://www.carfax.com/VehicleHistory/...">
+            </div>
+            <div class="vle-field vle-full">
+                <label>Service History Notes <em class="vle-tip" data-tip="Describe available service records, e.g. 'Full dealer service history', 'Regular oil changes every 5k miles at Toyota dealer'. Be specific.">?</em></label>
+                <textarea class="vle-txt" data-d="serviceHistory" placeholder="e.g. Full Toyota dealer service history available. Regular oil changes at 5,000 mile intervals. New tires and brakes at 40,000 miles. Never missed a service." rows="3"></textarea>
+            </div>
+        </div>
+        <div style="margin-top:14px;">
+            <div class="vle-tog-row">
+                <div class="vle-tog-info">
+                    <div class="vle-tog-label">Accident History</div>
+                    <div class="vle-tog-desc">Has this vehicle been in any reported accidents? Enabling this shows a disclosure notice on the listing.</div>
+                </div>
+                <label class="vle-tog"><input type="checkbox" data-d="accidentHistory"><span class="vle-tog-slider"></span></label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('check')} Warranty</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-3">
+            <div class="vle-field">
+                <label>Warranty Type <em class="vle-tip" data-tip="Factory = manufacturer warranty. Dealer = dealer-provided warranty. Extended = aftermarket. None = as-is.">?</em></label>
+                <select class="vle-sel" data-d="warrantyType">
+                    <option value="">No Warranty (As-Is)</option>
+                    <option value="factory">Factory / Manufacturer</option>
+                    <option value="dealer">Dealer Warranty</option>
+                    <option value="extended">Extended / Aftermarket</option>
+                    <option value="cpo">Certified Pre-Owned (CPO)</option>
+                </select>
+            </div>
+            <div class="vle-field">
+                <label>Warranty Remaining (months) <em class="vle-tip" data-tip="Months of warranty remaining from today">?</em></label>
+                <input class="vle-inp" type="number" data-d="warrantyMonths" placeholder="e.g. 36">
+            </div>
+            <div class="vle-field">
+                <label>Warranty Miles Remaining <em class="vle-tip" data-tip="Miles remaining on warranty coverage">?</em></label>
+                <input class="vle-inp" type="number" data-d="warrantyMiles" placeholder="e.g. 30000">
+            </div>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 CPO vehicles with warranty details sell significantly faster and at higher prices. Always specify remaining coverage.</div>
+</div>`;
+    }
+
+    _dealerPanel() {
+        return `
+<div class="vle-alert vle-alert-info">${this._icon('location')}<div>Dealer / seller information is shown on the listing page and used for lead routing. If you manage multiple locations, fill this in per listing. GPS coordinates are used for map display.</div></div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('user')} Dealer / Seller Information</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field">
+                <label>Dealer / Business Name <em class="vle-tip" data-tip="Your dealership or personal name. Shown on all listings.">?</em></label>
+                <input class="vle-inp" data-d="dealerName" placeholder="e.g. City Motors LLC">
+            </div>
+            <div class="vle-field">
+                <label>Phone Number <em class="vle-tip" data-tip="Primary contact phone for this listing. Shown as click-to-call.">?</em></label>
+                <input class="vle-inp" data-d="dealerPhone" type="tel" placeholder="e.g. +1 (555) 123-4567">
+            </div>
+            <div class="vle-field">
+                <label>Email Address <em class="vle-tip" data-tip="Contact email for inquiries. Lead form submissions are sent here.">?</em></label>
+                <input class="vle-inp" data-d="dealerEmail" type="email" placeholder="e.g. sales@citymotors.com">
+            </div>
+            <div class="vle-field">
+                <label>Website URL <em class="vle-tip" data-tip="Your dealership website link">?</em></label>
+                <input class="vle-inp" data-d="dealerWebsite" placeholder="https://www.citymotors.com">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('location')} Location</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field vle-full">
+                <label>Street Address <em class="vle-tip" data-tip="Full street address of the dealership or pickup location">?</em></label>
+                <input class="vle-inp" data-d="dealerAddress" placeholder="e.g. 1234 Auto Park Drive">
+            </div>
+            <div class="vle-field">
+                <label>City <em class="vle-tip" data-tip="City where the vehicle is located">?</em></label>
+                <input class="vle-inp" data-d="dealerCity" placeholder="e.g. Los Angeles">
+            </div>
+            <div class="vle-field">
+                <label>State / Province <em class="vle-tip" data-tip="State or province abbreviation">?</em></label>
+                <input class="vle-inp" data-d="dealerState" placeholder="e.g. CA">
+            </div>
+            <div class="vle-field">
+                <label>ZIP / Postal Code</label>
+                <input class="vle-inp" data-d="dealerZip" placeholder="e.g. 90001">
+            </div>
+            <div class="vle-field">
+                <label>Country</label>
+                <input class="vle-inp" data-d="dealerCountry" placeholder="e.g. United States">
+            </div>
+            <div class="vle-field">
+                <label>Latitude <em class="vle-tip" data-tip="GPS latitude for map display. e.g. 34.0522. Leave blank to auto-geocode from address.">?</em></label>
+                <input class="vle-inp" data-d="latitude" type="number" step="0.0001" placeholder="e.g. 34.0522">
+            </div>
+            <div class="vle-field">
+                <label>Longitude <em class="vle-tip" data-tip="GPS longitude for map display. e.g. -118.2437">?</em></label>
+                <input class="vle-inp" data-d="longitude" type="number" step="0.0001" placeholder="e.g. -118.2437">
+            </div>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 Accurate location helps buyers find your dealership and improves local SEO rankings.</div>
+</div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('image')} Dealer Logo</div>
+    <div class="vle-section-body">
+        <div class="vle-upload-zone" id="dealerLogoZone" style="padding:16px;">
+            <input type="file" id="dealerLogoFile" accept="image/*">
+            ${this._icon('image')}
+            <p>Upload dealer logo</p>
+            <small>PNG or SVG recommended for best quality</small>
+        </div>
+        <div class="vle-inline-progress" id="dealerLogoProgress">
+            <span id="dealerLogoProgressLabel">Uploading...</span>
+            <div class="vle-inline-progress-track"><div class="vle-inline-progress-fill" id="dealerLogoProgressFill"></div></div>
+        </div>
+        <img id="dealerLogoPrev" style="max-height:60px; margin-top:10px; display:none; border-radius:4px;">
+    </div>
+</div>`;
+    }
+
+    _leadsPanel() {
+        return `
 <div class="vle-alert vle-alert-success">${this._icon('user')}<div><b>Lead capture converts browsers into buyers.</b> When enabled, a contact form appears on each listing page. Submissions are sent to your email and stored in the Leads collection in your CMS.</div></div>
 
 <div class="vle-section">
@@ -1295,7 +2025,9 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
             <textarea class="vle-txt" data-d="compareHighlights" placeholder="One highlight per line:&#10;Only 1 previous owner&#10;Full service history&#10;New tires and brakes&#10;Lowest price in class" rows="5"></textarea>
         </div>
     </div>
-</div>`;}
+</div>`;
+    }
+
     _relatedHTML() {
         return `
 <div class="vle-section">
@@ -1310,7 +2042,52 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
     </div>
 </div>`;
     }
-    _seoPanel() { return `...`;}
+
+    _seoPanel() {
+        return `
+<div class="vle-alert vle-alert-info">${this._icon('seo')}<div>SEO settings control how your listing appears in Google search results. Good SEO = more organic traffic = more leads without paid ads.</div></div>
+
+<div class="vle-section">
+    <div class="vle-section-head">${this._icon('seo')} Search Engine Optimization</div>
+    <div class="vle-section-body">
+        <div class="vle-grid-2">
+            <div class="vle-field vle-full">
+                <label>SEO Title <em class="vle-tip" data-tip="The page title shown in Google results. Optimal length: 50–60 characters. Include year, make, model, and city for best local results. e.g. '2022 Ford Mustang GT For Sale in Los Angeles, CA'">?</em></label>
+                <input class="vle-inp" data-d="seoTitle" id="seoTitleInp" placeholder="e.g. 2022 Ford Mustang GT For Sale in Los Angeles, CA">
+                <small id="seoTitleCount" style="color:var(--ink3); font-size:11px; margin-top:3px;">0 / 60 characters</small>
+            </div>
+            <div class="vle-field vle-full">
+                <label>Meta Description <em class="vle-tip" data-tip="The description shown under your title in Google results. Optimal: 120–160 characters. Include price, key features, and a call-to-action.">?</em></label>
+                <textarea class="vle-txt" data-d="seoDescription" id="seoDescInp" placeholder="e.g. 2022 Ford Mustang GT, 32,000 miles, one owner, leather seats, navigation. Priced at $28,500. Test drives welcome. Call us today!" rows="3"></textarea>
+                <small id="seoDescCount" style="color:var(--ink3); font-size:11px; margin-top:3px;">0 / 160 characters</small>
+            </div>
+            <div class="vle-field vle-full">
+                <label>SEO Keywords <em class="vle-tip" data-tip="Comma-separated keywords to target. Include make, model, year, city, condition. e.g. '2022 Ford Mustang, used Mustang LA, V8 sports car for sale'">?</em></label>
+                <input class="vle-inp" data-d="seoKeywords" placeholder="e.g. 2022 Ford Mustang GT, used Mustang for sale Los Angeles, V8 coupe">
+            </div>
+        </div>
+        <div style="margin-top:16px;">
+            <div class="vle-section">
+                <div class="vle-section-head">${this._icon('image')} Open Graph Image (Social Sharing)</div>
+                <div class="vle-section-body">
+                    <div class="vle-upload-zone" id="ogZone" style="padding:16px;">
+                        <input type="file" id="ogFile" accept="image/*">
+                        ${this._icon('image')}
+                        <p>Upload OG Image</p>
+                        <small>Recommended: 1200×630px — used when shared on Facebook, WhatsApp, iMessage</small>
+                    </div>
+                    <div class="vle-inline-progress" id="ogProgress">
+                        <span id="ogProgressLabel">Uploading...</span>
+                        <div class="vle-inline-progress-track"><div class="vle-inline-progress-fill" id="ogProgressFill"></div></div>
+                    </div>
+                    <img id="ogPrev" style="max-height:80px; margin-top:10px; display:none; border-radius:4px;">
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="vle-section-tip">💡 Auto-tip: Leave SEO fields blank to auto-generate from your listing title, price, and city. Or customize for maximum search visibility.</div>
+</div>`;
+    }
 
     _inject() {
         if (!document.getElementById('vle-styles')) {
@@ -1332,8 +2109,7 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         this.querySelector('#saveDraftBtn').addEventListener('click', () => this._save('draft'));
         this.querySelector('#publishBtn').addEventListener('click', () => this._save('active'));
 
-        this.querySelectorAll('.vle-tab').forEach(t =>
-            t.addEventListener('click', () => this._switchTab(t.dataset.tab)));
+        this.querySelectorAll('.vle-tab').forEach(t => t.addEventListener('click', () => this._switchTab(t.dataset.tab)));
 
         const si = this.querySelector('#searchInput');
         let st;
@@ -1346,13 +2122,12 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
             this._renderGrid();
         });
 
-        this.querySelectorAll('.vle-stat-pill').forEach(p =>
-            p.addEventListener('click', () => {
-                this.querySelectorAll('.vle-stat-pill').forEach(x => x.classList.remove('active'));
-                p.classList.add('active');
-                this._filterStatus = p.dataset.status;
-                this._renderGrid();
-            }));
+        this.querySelectorAll('.vle-stat-pill').forEach(p => p.addEventListener('click', () => {
+            this.querySelectorAll('.vle-stat-pill').forEach(x => x.classList.remove('active'));
+            p.classList.add('active');
+            this._filterStatus = p.dataset.status;
+            this._renderGrid();
+        }));
 
         this.querySelector('#bulkToggleBtn').addEventListener('click', () => {
             this._bulkMode = !this._bulkMode;
@@ -1368,22 +2143,20 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         });
         this.querySelector('#openCompareBtn').addEventListener('click', () => this._showCompareModal());
 
-        this.querySelectorAll('.vle-type-btn').forEach(btn =>
-            btn.addEventListener('click', () => {
-                this.querySelectorAll('.vle-type-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this._data.vehicleType = btn.dataset.vtype;
-                this._toggleVehicleFields();
-                this._autoTitle();
-            }));
+        this.querySelectorAll('.vle-type-btn').forEach(btn => btn.addEventListener('click', () => {
+            this.querySelectorAll('.vle-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            this._data.vehicleType = btn.dataset.vtype;
+            this._toggleVehicleFields();
+            this._autoTitle();
+        }));
 
-        this.querySelectorAll('.vle-ltype-btn').forEach(btn =>
-            btn.addEventListener('click', () => {
-                this.querySelectorAll('.vle-ltype-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this._data.listingType = btn.dataset.ltype;
-                this._toggleListingTypeFields();
-            }));
+        this.querySelectorAll('.vle-ltype-btn').forEach(btn => btn.addEventListener('click', () => {
+            this.querySelectorAll('.vle-ltype-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            this._data.listingType = btn.dataset.ltype;
+            this._toggleListingTypeFields();
+        }));
 
         this.querySelectorAll('[data-d]').forEach(el => {
             const evt = el.type === 'checkbox' ? 'change' : 'input';
@@ -1392,7 +2165,6 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
                 if (el.type === 'checkbox') this._data[k] = el.checked;
                 else if (el.type === 'number') this._data[k] = el.value !== '' ? Number(el.value) : '';
                 else this._data[k] = el.value;
-
                 if (['make','model','trim','year'].includes(k)) this._autoTitle();
                 if (['price','downPayment','loanTermMonths','interestRate'].includes(k)) this._calcFinance();
             });
@@ -1443,19 +2215,6 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         });
     }
 
-    _relatedHTML() { return `
-<div class="vle-section">
-    <div class="vle-section-head">${this._icon('link')} Related Listings</div>
-    <div style="padding: 14px;">
-        <div style="display:flex;gap:8px;margin-bottom:16px;">
-            <input type="text" class="vle-inp" id="relatedSearchInput" placeholder="Search listings by title...">
-            <button class="vle-btn vle-btn-light vle-btn-sm" id="clearRelatedSearch">${this._icon('back')} Clear</button>
-        </div>
-        <div style="font-size:13px;color:var(--ink3);margin-bottom:10px;" id="relatedCount">0 listings selected</div>
-        <div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--r2);overflow:hidden;" id="relatedListingsList"></div>
-    </div>
-</div>`;}
-
     _renderRelatedListingsList(searchQuery = '') {
         const listEl = this.querySelector('#relatedListingsList');
         const countEl = this.querySelector('#relatedCount');
@@ -1465,7 +2224,7 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         let filtered = this._listings.filter(l => l._id !== currentId);
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
-            filtered = filtered.filter(l => (l.title || '').toLowerCase().includes(q) || (l.make || '').toLowerCase().includes(q) || (l.model || '').toLowerCase().includes(q));
+            filtered = filtered.filter(l => (l.title || '').toLowerCase().includes(q));
         }
         if (countEl) countEl.textContent = `${selectedIds.length} listing${selectedIds.length !== 1 ? 's' : ''} selected`;
         if (!filtered.length) {
@@ -1572,16 +2331,222 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         }));
     }
 
-    _showCompareModal() { /* unchanged */ }
-    _updateCompareBar() { /* unchanged */ }
-    _onListingList(data) { /* unchanged */ }
-    _updateStatCounts() { /* unchanged */ }
-    _renderGrid() { /* unchanged */ }
-    _cardHTML(l) { /* unchanged */ }
-    _openEditor(listing) { /* unchanged */ }
-    _showListView() { /* unchanged */ }
-    _showEditorView() { /* unchanged */ }
-    _resetEditorUI() { /* unchanged */ }
+    _showCompareModal() {
+        const items = this._listings.filter(l => this._compareIds.includes(l._id));
+        if (items.length < 2) { this._toast('info', 'Select at least 2 listings to compare'); return; }
+        const fields = [
+            ['Year', 'year'], ['Make', 'make'], ['Model', 'model'], ['Trim', 'trim'],
+            ['Price', 'price'], ['Mileage', 'mileage'], ['Condition', 'condition'],
+            ['Fuel Type', 'fuelType'], ['Transmission', 'transmission'], ['Drivetrain', 'drivetrain'],
+            ['Engine', 'engine'], ['Horsepower', 'horsepower'], ['Torque', 'torque'],
+            ['City MPG', 'mpgCity'], ['Hwy MPG', 'mpgHighway'],
+            ['Doors', 'doors'], ['Seating', 'seatingCapacity'],
+            ['Exterior Color', 'exteriorColor'], ['Interior Color', 'interiorColor'],
+            ['VIN', 'vin'], ['Owners', 'owners'], ['Warranty', 'warrantyType'],
+        ];
+        const thCells = items.map(l => `<th>${l.year || ''} ${l.make || ''} ${l.model || ''}</th>`).join('');
+        const rows = fields.map(([label, key]) => {
+            const cells = items.map(l => `<td>${l[key] || '—'}</td>`).join('');
+            return `<tr><td>${label}</td>${cells}</tr>`;
+        }).join('');
+        const wrap = this.querySelector('#compareModalWrap');
+        wrap.innerHTML = `
+            <div class="vle-modal-overlay">
+                <div class="vle-modal">
+                    <div class="vle-modal-head">
+                        <h2>${this._icon('compare')} Vehicle Comparison</h2>
+                        <button class="vle-btn vle-btn-light vle-btn-sm" id="closeCompareModal">${this._icon('x')} Close</button>
+                    </div>
+                    <div style="padding:20px; overflow-x:auto;">
+                        <table class="vle-compare-table">
+                            <thead><tr><th>Specification</th>${thCells}</tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
+        wrap.querySelector('#closeCompareModal').addEventListener('click', () => { wrap.innerHTML = ''; });
+        wrap.querySelector('.vle-modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) wrap.innerHTML = ''; });
+    }
+
+    _updateCompareBar() {
+        const bar = this.querySelector('#compareBar');
+        const slots = this.querySelector('#compareSlots');
+        const openBtn = this.querySelector('#openCompareBtn');
+        if (this._compareIds.length === 0) {
+            bar.classList.remove('active');
+            return;
+        }
+        bar.classList.add('active');
+        slots.innerHTML = this._compareIds.map(id => {
+            const l = this._listings.find(x => x._id === id);
+            return `<div class="vle-compare-slot">${l ? `${l.year||''} ${l.make||''} ${l.model||''}`.trim() : id}<button data-cid="${id}">✕</button></div>`;
+        }).join('');
+        slots.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+            this._compareIds = this._compareIds.filter(id => id !== btn.dataset.cid);
+            this._updateCompareBar();
+            this._renderGrid();
+        }));
+        openBtn.disabled = this._compareIds.length < 2;
+    }
+
+    _onListingList(data) {
+        this.querySelector('#listLoading').style.display = 'none';
+        const grid = this.querySelector('#listGrid');
+        grid.style.display = 'grid';
+        this._listings = data.listings || [];
+        this._updateStatCounts();
+        this._renderGrid();
+    }
+
+    _updateStatCounts() {
+        const all = this._listings.length;
+        const active = this._listings.filter(l => l.status === 'active').length;
+        const draft = this._listings.filter(l => l.status === 'draft').length;
+        const sold = this._listings.filter(l => l.status === 'sold').length;
+        const rented = this._listings.filter(l => l.status === 'rented').length;
+        const expired = this._listings.filter(l => l.status === 'expired').length;
+        const s = (id, val) => { const el = this.querySelector(`#${id}`); if (el) el.textContent = val; };
+        s('statTotal', all); s('statActive', active); s('statSold', sold);
+        s('cntAll', all); s('cntActive', active); s('cntDraft', draft);
+        s('cntSold', sold); s('cntRented', rented); s('cntExpired', expired);
+    }
+
+    _renderGrid() {
+        let items = [...this._listings];
+        if (this._filterStatus !== 'all') items = items.filter(l => l.status === this._filterStatus);
+        if (this._filterType !== 'all') items = items.filter(l => l.vehicleType === this._filterType);
+        if (this._filterListingType && this._filterListingType !== 'all') items = items.filter(l => l.listingType === this._filterListingType);
+        if (this._searchQ.trim()) {
+            const q = this._searchQ.toLowerCase();
+            items = items.filter(l => 
+                (l.title||'').toLowerCase().includes(q) ||
+                (l.make||'').toLowerCase().includes(q) ||
+                (l.model||'').toLowerCase().includes(q) ||
+                (l.vin||'').toLowerCase().includes(q) ||
+                (l.year||'').toString().includes(q) ||
+                (l.stockNumber||'').toLowerCase().includes(q)
+            );
+        }
+        items.sort((a, b) => {
+            if (this._sortField === 'date') return this._sortDir === 'desc' ? (new Date(b._createdDate) - new Date(a._createdDate)) : (new Date(a._createdDate) - new Date(b._createdDate));
+            if (this._sortField === 'price') return this._sortDir === 'desc' ? ((b.price||0) - (a.price||0)) : ((a.price||0) - (b.price||0));
+            if (this._sortField === 'year') return (b.year||0) - (a.year||0);
+            return 0;
+        });
+        const grid = this.querySelector('#listGrid');
+        if (!items.length) {
+            grid.innerHTML = `<div class="vle-state-box" style="grid-column:1/-1">${this._icon('car')}<p>No listings found. Try adjusting your filters or create a new listing.</p></div>`;
+            return;
+        }
+        grid.innerHTML = items.map(l => this._cardHTML(l)).join('');
+        grid.querySelectorAll('.vle-card-edit').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); const l = this._listings.find(x => x._id === btn.dataset.id); if (l) this._openEditor(l); }));
+        grid.querySelectorAll('.vle-card-delete').forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const l = this._listings.find(x => x._id === btn.dataset.id);
+            if (!l || !confirm(`Delete "${l.title || 'this listing'}"?\n\nThis cannot be undone.`)) return;
+            this._emit('delete-listing', { id: l._id });
+        }));
+        grid.querySelectorAll('.vle-card-compare').forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            if (this._compareIds.includes(id)) this._compareIds = this._compareIds.filter(x => x !== id);
+            else {
+                if (this._compareIds.length >= 4) { this._toast('info', 'Maximum 4 listings can be compared'); return; }
+                this._compareIds.push(id);
+            }
+            this._updateCompareBar();
+            this._renderGrid();
+        }));
+        if (this._bulkMode) {
+            grid.querySelectorAll('.vle-card').forEach(card => card.addEventListener('click', () => {
+                const id = card.dataset.id;
+                if (this._bulkSelected.includes(id)) this._bulkSelected = this._bulkSelected.filter(x => x !== id);
+                else this._bulkSelected.push(id);
+                card.classList.toggle('selected', this._bulkSelected.includes(id));
+            }));
+        }
+    }
+
+    _cardHTML(l) {
+        const price = l.salePrice ? l.salePrice : l.price;
+        const priceStr = price ? `$${Number(price).toLocaleString()}` : 'Call for Price';
+        const origStr = (l.salePrice && l.price) ? `$${Number(l.price).toLocaleString()}` : '';
+        const isComparing = this._compareIds.includes(l._id);
+        const imgHtml = l.primaryImage ? `<img class="vle-card-img" src="${l.primaryImage}" alt="${l.title||''}" loading="lazy">` : `<div class="vle-card-img-placeholder">${this._icon(l.vehicleType||'car')}</div>`;
+        const badges = [
+            l.status ? `<span class="vle-badge vle-badge-${l.status}">${l.status}</span>` : '',
+            l.listingType ? `<span class="vle-badge vle-badge-${l.listingType}">${l.listingType==='new'?'New':l.listingType==='used'?'Used':l.listingType==='rent'?'Rent':'Auction'}</span>` : '',
+            l.featured ? `<span class="vle-badge vle-badge-featured">${this._icon('star')} Featured</span>` : '',
+            l.certifiedPreOwned ? `<span class="vle-badge vle-badge-active">CPO</span>` : '',
+        ].filter(Boolean).join('');
+        return `
+<div class="vle-card" data-id="${l._id}">
+    <div style="position:relative;">
+        ${imgHtml}
+        <div class="vle-card-badge-row">${badges}</div>
+        <div class="vle-card-actions">
+            <div class="vle-card-action-btn vle-card-compare ${isComparing?'compare-active':''}" data-id="${l._id}" title="${isComparing?'Remove from compare':'Add to compare'}">${this._icon('compare')}</div>
+            <div class="vle-card-action-btn vle-card-edit" data-id="${l._id}" title="Edit listing">${this._icon('edit')}</div>
+            <div class="vle-card-action-btn danger vle-card-delete" data-id="${l._id}" title="Delete listing">${this._icon('trash')}</div>
+        </div>
+    </div>
+    <div class="vle-card-body">
+        <div class="vle-card-title">${l.title || `${l.year||''} ${l.make||''} ${l.model||''}`.trim() || 'Untitled'}</div>
+        <div class="vle-card-sub">${[l.trim, l.exteriorColor, l.bodyStyle].filter(Boolean).join(' · ') || l.slug || ''}</div>
+        <div class="vle-card-price">${priceStr}${origStr ? `<span>${origStr}</span>` : ''}</div>
+        <div class="vle-card-meta">
+            ${l.mileage ? `<span class="vle-card-meta-item">${this._icon('history')} ${Number(l.mileage).toLocaleString()} mi</span>` : ''}
+            ${l.fuelType ? `<span class="vle-card-meta-item">${l.fuelType}</span>` : ''}
+            ${l.transmission ? `<span class="vle-card-meta-item">${l.transmission}</span>` : ''}
+            ${l.dealerCity ? `<span class="vle-card-meta-item">${this._icon('location')} ${l.dealerCity}${l.dealerState?', '+l.dealerState:''}</span>` : ''}
+        </div>
+    </div>
+</div>`;
+    }
+
+    _openEditor(listing) {
+        this._editItem = listing;
+        this._data = this._freshData();
+        this._galleryImages = [];
+        this._resetEditorUI();
+        if (listing) this._populateEditor(listing);
+        this._showEditorView();
+        this._switchTab('basic');
+        this._toggleVehicleFields();
+        this._toggleListingTypeFields();
+        this._calcFinance();
+    }
+
+    _showListView() {
+        this.querySelector('#listView').classList.remove('hidden');
+        this.querySelector('#editorView').classList.add('hidden');
+        this._emit('load-listing-list', {});
+    }
+
+    _showEditorView() {
+        this.querySelector('#listView').classList.add('hidden');
+        this.querySelector('#editorView').classList.remove('hidden');
+        const t = this._editItem;
+        this.querySelector('#editorTitle').textContent = t ? `Editing: ${t.title || t.make + ' ' + t.model}` : 'New Listing';
+        this.querySelector('#publishBtn').textContent = t ? '✓ Update' : '✓ Publish';
+    }
+
+    _resetEditorUI() {
+        this.querySelectorAll('[data-d]').forEach(el => {
+            if (el.type === 'checkbox') el.checked = false;
+            else el.value = '';
+        });
+        this._galleryImages = [];
+        this._renderGalleryGrid();
+        ['dealerLogoPrev','ogPrev'].forEach(id => {
+            const el = this.querySelector(`#${id}`);
+            if (el) { el.src = ''; el.style.display = 'none'; }
+        });
+        this.querySelector('#calcResult').style.display = 'none';
+        this.querySelectorAll('[data-group]').forEach(cb => cb.checked = false);
+    }
+
     _populateEditor(l) {
         Object.keys(this._data).forEach(k => { if (l[k] !== undefined) this._data[k] = l[k]; });
         this.querySelectorAll('[data-d]').forEach(el => {
@@ -1592,7 +2557,10 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         });
         this.querySelectorAll('.vle-type-btn').forEach(b => b.classList.toggle('active', b.dataset.vtype === this._data.vehicleType));
         this.querySelectorAll('.vle-ltype-btn').forEach(b => b.classList.toggle('active', b.dataset.ltype === this._data.listingType));
-        if (Array.isArray(l.gallery)) { this._galleryImages = l.gallery; this._renderGalleryGrid(); }
+        if (Array.isArray(l.gallery)) {
+            this._galleryImages = l.gallery;
+            this._renderGalleryGrid();
+        }
         if (l.dealerLogo) { const el = this.querySelector('#dealerLogoPrev'); if (el) { el.src = l.dealerLogo; el.style.display = 'block'; } }
         if (l.ogImage) { const el = this.querySelector('#ogPrev'); if (el) { el.src = l.ogImage; el.style.display = 'block'; } }
         const allFeatures = [l.safetyFeatures, l.techFeatures, l.exteriorFeatures, l.interiorFeatures, l.features].join(',');
@@ -1601,18 +2569,88 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         if (l.seoDescription) this.querySelector('#seoDescCount').textContent = `${l.seoDescription.length} / 160 characters`;
         this._data.relatedListings = Array.isArray(l.relatedListings) ? l.relatedListings : [];
     }
+
     _switchTab(tab) {
         this._tab = tab;
         this.querySelectorAll('.vle-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
         this.querySelectorAll('.vle-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
         if (tab === 'related') this._renderRelatedListingsList('');
     }
-    _toggleVehicleFields() { /* unchanged */ }
-    _toggleListingTypeFields() { /* unchanged */ }
-    _autoTitle() { /* unchanged */ }
-    _autoSlug(title) { /* unchanged */ }
-    _calcFinance() { /* unchanged */ }
-    _compileFeatures() { /* unchanged */ }
+
+    _toggleVehicleFields() {
+        const type = this._data.vehicleType;
+        const boat = this.querySelector('#specBoatSection');
+        if (boat) boat.style.display = type === 'boat' ? 'block' : 'none';
+    }
+
+    _toggleListingTypeFields() {
+        const type = this._data.listingType;
+        const rental = this.querySelector('#rentalPricingSection');
+        const auction = this.querySelector('#auctionPricingSection');
+        if (rental) rental.style.display = type === 'rent' ? 'block' : 'none';
+        if (auction) auction.style.display = type === 'auction' ? 'block' : 'none';
+    }
+
+    _autoTitle() {
+        const d = this._data;
+        const generated = [d.year, d.make, d.model, d.trim].filter(Boolean).join(' ');
+        if (generated) {
+            const titleEl = this.querySelector('#titleInp');
+            if (titleEl && (!titleEl.value || !this._data.title)) {
+                titleEl.value = generated;
+                this._data.title = generated;
+                this._autoSlug(generated);
+            }
+        }
+    }
+
+    _autoSlug(title) {
+        const base = title.toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+        const existing = this._listings.filter(l => l._id !== this._editItem?._id).map(l => l.slug);
+        let slug = base; let c = 1;
+        while (existing.includes(slug)) { slug = `${base}-${c}`; c++; }
+        const el = this.querySelector('#slugInp');
+        if (el) { el.value = slug; this._data.slug = slug; }
+    }
+
+    _calcFinance() {
+        const price = parseFloat(this._data.price) || 0;
+        const down = parseFloat(this._data.downPayment) || 0;
+        const rate = parseFloat(this._data.interestRate) || 0;
+        const term = parseInt(this._data.loanTermMonths) || 60;
+        const result = this.querySelector('#calcResult');
+        if (!price || !rate || !result) { if (result) result.style.display = 'none'; return; }
+        const loan = price - down;
+        const monthly = rate > 0 ? (loan * (rate/1200)) / (1 - Math.pow(1 + rate/1200, -term)) : loan / term;
+        const total = monthly * term;
+        const interest = total - loan;
+        result.style.display = 'block';
+        this.querySelector('#calcMonthly').textContent = `$${monthly.toFixed(2)}/mo`;
+        this.querySelector('#calcTotal').textContent = `$${total.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+        this.querySelector('#calcInterestTotal').textContent = `$${interest.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+        this.querySelector('#calcLoanAmt').textContent = `$${loan.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+        this._data.monthlyPayment = monthly.toFixed(2);
+    }
+
+    _compileFeatures() {
+        const byGroup = { safety: [], tech: [], exterior: [], interior: [] };
+        this.querySelectorAll('[data-group]:checked').forEach(cb => {
+            const g = cb.dataset.group;
+            if (byGroup[g]) byGroup[g].push(cb.dataset.feature);
+        });
+        const safetyInp = this.querySelector('[data-d="safetyFeatures"]');
+        const techInp = this.querySelector('[data-d="techFeatures"]');
+        const extInp = this.querySelector('[data-d="exteriorFeatures"]');
+        const intInp = this.querySelector('[data-d="interiorFeatures"]');
+        if (safetyInp) { safetyInp.value = byGroup.safety.join(', '); this._data.safetyFeatures = safetyInp.value; }
+        if (techInp) { techInp.value = byGroup.tech.join(', '); this._data.techFeatures = techInp.value; }
+        if (extInp) { extInp.value = byGroup.exterior.join(', '); this._data.exteriorFeatures = extInp.value; }
+        if (intInp) { intInp.value = byGroup.interior.join(', '); this._data.interiorFeatures = intInp.value; }
+        const all = [...byGroup.safety, ...byGroup.tech, ...byGroup.exterior, ...byGroup.interior];
+        const featuresEl = this.querySelector('[data-d="features"]');
+        if (featuresEl) { featuresEl.value = all.join(', '); this._data.features = featuresEl.value; }
+    }
+
     _save(status) {
         const action = status === 'active' ? (this._editItem ? 'Updating' : 'Publishing') : 'Saving draft';
         this._showProgress(`${action}…`, 'Preparing listing data…');
@@ -1621,6 +2659,7 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         const payload = { ...this._data, status, gallery: this._galleryImages, _id: this._editItem?._id || null };
         this._emit('save-listing', payload);
     }
+
     _onSaveResult(data) {
         if (data.success) {
             this._setProgress(100);
@@ -1628,7 +2667,7 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
             setTimeout(() => {
                 this._hideProgress();
                 this._toast('success', data.message || 'Listing saved!');
-                this._emit('load-listing-list', {});
+                this._emit('load-listing-list', {});   // auto refresh list
             }, 500);
             if (!this._editItem && data.id) this._editItem = { _id: data.id };
             else if (this._editItem && data.id) this._editItem._id = data.id;
@@ -1637,19 +2676,101 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
             this._toast('error', data.message || 'Save failed.');
         }
     }
-    _onDeleteResult(data) { /* unchanged */ }
-    _onUploadResult(data) { /* unchanged */ }
-    _onBulkResult(data) { /* unchanged */ }
-    _onMakesList(data) { /* unchanged */ }
-    _onModelsList(data) { /* unchanged */ }
-    _showProgress(title, sub) { /* unchanged */ }
-    _setProgress(p) { /* unchanged */ }
-    _setProgressSub(t) { /* unchanged */ }
-    _hideProgress() { /* unchanged */ }
-    _toast(type, msg) { /* unchanged */ }
-    _toWebP(file) { /* unchanged */ }
+
+    _onDeleteResult(data) {
+        if (data.success) { this._toast('success', 'Listing deleted.'); this._emit('load-listing-list', {}); }
+        else this._toast('error', 'Delete failed: ' + (data.message || ''));
+    }
+
+    _onUploadResult(data) {
+        const url = data.url;
+        if (data.blockId && data.blockId.startsWith('gallery-')) {
+            this._galleryImages.push({ url, alt: this._data.title || '', isPrimary: this._galleryImages.length === 0 });
+            if (this._galleryImages.length === 1) this._data.primaryImage = url;
+            this._data.gallery = this._galleryImages;
+            const placeholder = this.querySelector(`#gcard-${data.blockId}`);
+            if (placeholder) placeholder.remove();
+            this._renderGalleryGrid();
+            const prog = this.querySelector('#galleryProgress');
+            const fill = this.querySelector('#galleryProgressFill');
+            const label = this.querySelector('#galleryProgressLabel');
+            if (fill) fill.style.width = '100%';
+            if (label) label.textContent = 'All photos uploaded!';
+            setTimeout(() => { if (prog) prog.classList.remove('active'); }, 2000);
+        }
+        if (data.metaKey && this._pendingMetaProgress[data.metaKey]) {
+            const { prog, fill, label } = this._pendingMetaProgress[data.metaKey];
+            this._data[data.metaKey] = url;
+            if (fill) fill.style.width = '100%';
+            if (label) label.textContent = 'Uploaded!';
+            setTimeout(() => { if (prog) prog.classList.remove('active'); delete this._pendingMetaProgress[data.metaKey]; }, 1500);
+        }
+    }
+
+    _onBulkResult(data) {
+        this._toast(data.success ? 'success' : 'error', data.message);
+        if (data.success) { this._bulkSelected = []; this._emit('load-listing-list', {}); }
+    }
+
+    _onMakesList(data) {
+        const dl = this.querySelector('#makesList');
+        if (!dl) return;
+        this._makes = data.makes || [];
+        dl.innerHTML = this._makes.map(m => `<option value="${m}"></option>`).join('');
+    }
+
+    _onModelsList(data) { this._models = data.models || []; }
+
+    _showProgress(title, sub) {
+        this.querySelector('#overlayTitle').textContent = title;
+        this.querySelector('#overlaySub').textContent = sub;
+        this.querySelector('#overlayFill').style.width = '0%';
+        this.querySelector('#overlayPct').textContent = '0%';
+        this.querySelector('#progressOverlay').classList.add('active');
+    }
+    _setProgress(p) {
+        this.querySelector('#overlayFill').style.width = `${p}%`;
+        this.querySelector('#overlayPct').textContent = `${Math.round(p)}%`;
+    }
+    _setProgressSub(t) { this.querySelector('#overlaySub').textContent = t; }
+    _hideProgress() { this.querySelector('#progressOverlay').classList.remove('active'); }
+
+    _toast(type, msg) {
+        const area = this.querySelector('#toastArea');
+        if (!area) return;
+        const t = document.createElement('div');
+        t.className = `vle-toast vle-toast-${type}`;
+        t.textContent = msg;
+        area.appendChild(t);
+        setTimeout(() => t.remove(), 5000);
+    }
+
+    async _toWebP(file) {
+        return new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width; canvas.height = img.height;
+                    canvas.getContext('2d').drawImage(img, 0, 0);
+                    canvas.toBlob(blob => {
+                        const r2 = new FileReader();
+                        r2.onloadend = () => res(r2.result.split(',')[1]);
+                        r2.readAsDataURL(blob);
+                    }, 'image/webp', 0.92);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
     _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-    _emit(name, detail) { this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true })); }
+
+    _emit(name, detail) {
+        this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
+    }
 }
 
 customElements.define('vehicle-listing-editor', VehicleListingEditor);
