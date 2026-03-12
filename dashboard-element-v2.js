@@ -1089,8 +1089,8 @@ vehicle-listing-editor .vle-related-count { font-size: 12px; color: var(--ink3);
     </div>
 </div>
 
-<div class="vle-section">_dealerPanel() {
-        return `
+_dealerPanel() {
+    return `
 <div class="vle-section">
     <div class="vle-section-head">${this._icon('user')} Dealer / Seller Information</div>
     <div class="vle-section-body">
@@ -1134,7 +1134,7 @@ vehicle-listing-editor .vle-related-count { font-size: 12px; color: var(--ink3);
         <img id="dealerLogoPrev" style="max-height:60px; margin-top:10px; display:none; border-radius:4px;">
     </div>
 </div>`;
-    }
+}
 
     _leadsPanel() {
         return `
