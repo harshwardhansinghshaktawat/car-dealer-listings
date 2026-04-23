@@ -2440,7 +2440,13 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
             return;
         }
         grid.innerHTML = items.map(l => this._cardHTML(l)).join('');
-        grid.querySelectorAll('.vle-card-edit').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); const l = this._listings.find(x => x._id === btn.dataset.id); if (l) this._openEditor(l); }));
+        grid.querySelectorAll('.vle-card-edit').forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
+            // Read from this._listings at click-time to get the patched snapshot
+            // written by _onSaveResult, not a stale closure variable.
+            const l = this._listings.find(x => x._id === btn.dataset.id);
+            if (l) this._openEditor(l);
+        }));
         grid.querySelectorAll('.vle-card-delete').forEach(btn => btn.addEventListener('click', e => {
             e.stopPropagation();
             const l = this._listings.find(x => x._id === btn.dataset.id);
@@ -2718,13 +2724,45 @@ vehicle-listing-editor .vle-ltype-btn.active { border-color: var(--accent2); bac
         if (data.success) {
             this._setProgress(100);
             this._setProgressSub('Done!');
+
+            // ── Immediately patch the local listings array so the grid ──
+            // ── renders the correct state without waiting for a CMS    ──
+            // ── round-trip. This fixes the stale-state-on-back bug.    ──
+            const savedId = data.id || this._editItem?._id;
+            if (savedId) {
+                // Build the updated snapshot from what we just saved
+                const updatedSnapshot = {
+                    ...this._data,
+                    _id:     savedId,
+                    gallery: this._galleryImages,
+                    // _createdDate is preserved if editing; set now for new listings
+                    _createdDate: this._editItem?._createdDate || new Date().toISOString(),
+                };
+
+                const existingIdx = this._listings.findIndex(l => l._id === savedId);
+                if (existingIdx > -1) {
+                    // Update existing entry in-place
+                    this._listings[existingIdx] = { ...this._listings[existingIdx], ...updatedSnapshot };
+                } else {
+                    // Prepend new listing
+                    this._listings.unshift(updatedSnapshot);
+                }
+
+                // Re-render the grid immediately with patched data
+                this._updateStatCounts();
+                this._renderGrid();
+            }
+
+            // Update editItem reference
+            if (!this._editItem && savedId) this._editItem = { _id: savedId };
+            else if (this._editItem && savedId) this._editItem._id = savedId;
+
             setTimeout(() => {
                 this._hideProgress();
                 this._toast('success', data.message || 'Listing saved!');
+                // Also trigger a background CMS refresh to get the authoritative data
                 this._emit('load-listing-list', {});
             }, 500);
-            if (!this._editItem && data.id) this._editItem = { _id: data.id };
-            else if (this._editItem && data.id) this._editItem._id = data.id;
         } else {
             this._hideProgress();
             this._toast('error', data.message || 'Save failed.');
