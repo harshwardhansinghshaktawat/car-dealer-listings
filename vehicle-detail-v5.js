@@ -374,7 +374,8 @@ ${v.dealerPhone ? `<a class="vdv-btn vdv-btn-ghost" href="tel:${v.dealerPhone}" 
     }
 
     _priceHTML(v) {
-        const sym = v.currency==='INR'?'₹':v.currency==='EUR'?'€':v.currency==='GBP'?'£':'$';
+        const SYMBOLS = {USD:'$',CAD:'C$',MXN:'MX$',BRL:'R$',ARS:'$',CLP:'$',COP:'$',EUR:'€',GBP:'£',CHF:'Fr',NOK:'kr',SEK:'kr',DKK:'kr',PLN:'zł',CZK:'Kč',HUF:'Ft',RON:'lei',TRY:'₺',RUB:'₽',UAH:'₴',AED:'د.إ',SAR:'﷼',QAR:'﷼',KWD:'KD',BHD:'BD',OMR:'﷼',JOD:'JD',EGP:'E£',ZAR:'R',NGN:'₦',KES:'KSh',GHS:'₵',MAD:'MAD',ILS:'₪',INR:'₹',PKR:'₨',BDT:'৳',LKR:'₨',NPR:'₨',JPY:'¥',CNY:'¥',KRW:'₩',HKD:'HK$',SGD:'S$',MYR:'RM',THB:'฿',IDR:'Rp',PHP:'₱',VND:'₫',TWD:'NT$',AUD:'A$',NZD:'NZ$'};
+        const sym = SYMBOLS[v.currency] || '$';
         const fmt = n => sym + Number(n).toLocaleString();
         if (v.listingType === 'rent') return `
 <div class="vdv-price-main">${v.rentalPricePerDay ? fmt(v.rentalPricePerDay)+'<small>/day</small>' : 'Contact for price'}</div>
