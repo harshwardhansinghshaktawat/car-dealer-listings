@@ -438,13 +438,25 @@ ${v.monthlyPayment    ? `<div class="vdv-price-monthly">Est. ${fmt(v.monthlyPaym
     }
 
     _renderTabFeatures(v) {
+        // Build a set of every feature already shown in a named group,
+        // so we can isolate the typed extras in the master 'features' field.
+        const namedItems = new Set(
+            [v.safetyFeatures, v.techFeatures, v.exteriorFeatures, v.interiorFeatures]
+                .join(',').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+        );
+        // Extras = items in the master 'features' field not already in a named group
+        const extras = (v.features || '').split(',')
+            .map(s => s.trim()).filter(s => s && !namedItems.has(s.toLowerCase()));
+
         const groups = [
-            ['Safety',   v.safetyFeatures   || v.features],
-            ['Tech',     v.techFeatures],
-            ['Exterior', v.exteriorFeatures],
-            ['Interior', v.interiorFeatures],
-            ['Packages', v.packages],
-        ].filter(([,val]) => val);
+            ['Safety Features',   v.safetyFeatures],
+            ['Technology',        v.techFeatures],
+            ['Exterior',          v.exteriorFeatures],
+            ['Interior & Comfort',v.interiorFeatures],
+            ['Packages',          v.packages],
+            // Additional typed extras that don't belong to any named group
+            extras.length ? ['Additional Features', extras.join(', ')] : null,
+        ].filter(g => g && g[1]);
         if (!groups.length) {
             this.querySelector('#vdvTabFeatures').innerHTML = `<p style="color:${this.styleProps.metaColor}">No features listed.</p>`;
             return;
