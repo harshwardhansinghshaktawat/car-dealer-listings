@@ -97,7 +97,6 @@ class VehicleListingEditor extends HTMLElement {
             leadFormTitle:'Interested in this vehicle?',
             leadFormFields:'name,email,phone,message',
             leadEmailRecipient:'',
-            leadAutoReply:false,               // FIX 8 — added
             seoTitle:'', seoDescription:'', seoKeywords:'', ogImage:'',
             compareEnabled:true,               // default ON
             compareHighlights:'',
@@ -996,10 +995,6 @@ vehicle-listing-editor .vle-ltype-btn.active{border-color:var(--accent2);backgro
     <div class="vle-tog-row">
       <div class="vle-tog-info"><div class="vle-tog-label">Enable Lead Capture Form</div><div class="vle-tog-desc">Show a contact form on this listing page. Recommended for all active listings.</div></div>
       <label class="vle-tog"><input type="checkbox" data-d="leadCaptureEnabled" id="leadCaptureEnabledCb"><span class="vle-tog-slider"></span></label>
-    </div>
-    <div class="vle-tog-row">
-      <div class="vle-tog-info"><div class="vle-tog-label">Send Auto-Reply to Enquirer</div><div class="vle-tog-desc">Automatically send a confirmation email to the person who submitted the lead form.</div></div>
-      <label class="vle-tog"><input type="checkbox" data-d="leadAutoReply" id="leadAutoReplyCb"><span class="vle-tog-slider"></span></label>
     </div>
     <div style="margin-top:16px;" class="vle-grid-2">
       <div class="vle-field vle-full"><label>Form Headline</label><input class="vle-inp" data-d="leadFormTitle" placeholder="e.g. Interested in this vehicle?"></div>
