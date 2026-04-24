@@ -983,7 +983,8 @@ class VehicleListViewer extends HTMLElement {
       : `<div class="card-img-ph ic" style="font-size:52px">${I.car}</div>`;
 
     const price = (() => {
-      const sym = {INR:'₹',EUR:'€',GBP:'£'}[v.currency]||'$';
+      const SYMBOLS = {USD:'$',CAD:'C$',MXN:'MX$',BRL:'R$',ARS:'$',CLP:'$',COP:'$',EUR:'€',GBP:'£',CHF:'Fr',NOK:'kr',SEK:'kr',DKK:'kr',PLN:'zł',CZK:'Kč',HUF:'Ft',RON:'lei',TRY:'₺',RUB:'₽',UAH:'₴',AED:'د.إ',SAR:'﷼',QAR:'﷼',KWD:'KD',BHD:'BD',OMR:'﷼',JOD:'JD',EGP:'E£',ZAR:'R',NGN:'₦',KES:'KSh',GHS:'₵',MAD:'MAD',ILS:'₪',INR:'₹',PKR:'₨',BDT:'৳',LKR:'₨',NPR:'₨',JPY:'¥',CNY:'¥',KRW:'₩',HKD:'HK$',SGD:'S$',MYR:'RM',THB:'฿',IDR:'Rp',PHP:'₱',VND:'₫',TWD:'NT$',AUD:'A$',NZD:'NZ$'};
+      const sym = SYMBOLS[v.currency] || '$';
       const fmt = n => sym + Number(n).toLocaleString();
       if (v.listingType==='rent'    && v.rentalPricePerDay)   return `<span class="price">${fmt(v.rentalPricePerDay)}<small style="font-weight:400;font-size:.7em">/day</small></span>`;
       if (v.listingType==='auction' && v.auctionStartPrice)   return `<span class="price">From ${fmt(v.auctionStartPrice)}</span><span class="price-note">Auction</span>`;
